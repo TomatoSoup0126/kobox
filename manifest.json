@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "KOBO Slash",
-  "version": "1.0",
-  "description": "幫助使用者快速將願望清單中的書籍找出適合結帳的組合",
+  "name": "KoBox",
+  "version": "0.1",
+  "description": "Find Optimal Checkout Combinations",
   "permissions": [
     "activeTab",
     "storage"
@@ -10,9 +10,21 @@
   "host_permissions": [
     "https://www.kobo.com/*"
   ],
+  "icons": {
+    "16": "dist/icons/icon-16.png",
+    "32": "dist/icons/icon-32.png",
+    "48": "dist/icons/icon-48.png",
+    "128": "dist/icons/icon-128.png"
+  },
   "action": {
-    "default_popup": "dist/src/popup/popup.html",
-    "default_title": "KOBO Slash"
+    "default_popup": "/dist/popup.html",
+    "default_title": "KoBox",
+    "default_icon": {
+      "16": "dist/icons/icon-16.png",
+      "32": "dist/icons/icon-32.png",
+      "48": "dist/icons/icon-48.png",
+      "128": "dist/icons/icon-128.png"
+    }
   },
   "content_scripts": [
     {
@@ -22,7 +34,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["dist/src/popup/popup.html"],
+      "resources": ["/dist/popup.html"],
       "matches": ["https://www.kobo.com/*"]
     }
   ]

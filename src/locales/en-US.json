@@ -1,0 +1,35 @@
+{
+  "app": {
+    "title": "KoBox",
+    "subtitle": "Find Optimal Checkout Combinations"
+  },
+  "control": {
+    "step1": "Import Data",
+    "step3": "Search Settings",
+    "importWishlist": "Import Books Data",
+    "targetPrice": "Checkout price must be higher than",
+    "findCombinations": "Find Combinations",
+    "importing": "Importing...",
+    "calculating": "Calculating...",
+    "enterAmount": "e.g.: 1000",
+    "hintMessage": "💡 Please go to {link} page first, then click the button below to import books",
+    "wishlistLink": "My Wishlist"
+  },
+  "books": {
+    "title": "Books List",
+    "clearAll": "Clear All Data",
+    "noBooks": "No books imported yet",
+    "deleteBook": "Delete this book"
+  },
+  "results": {
+    "title": "Recommended Combinations",
+    "combination": "Combination",
+    "noResults": "No combinations found matching criteria, please adjust target price",
+    "searching": "Calculating combinations...",
+    "setPrice": "Set price and click"
+  },
+  "messages": {
+    "importFailed": "Import failed\nPlease ensure you are on the wishlist page\nor refresh the wishlist page",
+    "storageError": "Chrome storage unavailable, this may affect data saving functionality"
+  }
+}

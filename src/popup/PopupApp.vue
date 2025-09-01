@@ -1,437 +1,584 @@
 <template>
   <div class="popup-container">
-    <header class="header">
-      <h1 class="title">📚 KOBO Slash</h1>
-      <p class="subtitle">找出最佳結帳組合</p>
-    </header>
+    <Header />
 
     <main class="main-content">
-      <!-- 狀態顯示 -->
-      <div class="status-section">
-        <div v-if="!isOnWishlist" class="warning">
-          ⚠️ 請先開啟 KOBO 願望清單頁面
-        </div>
-        <div v-else-if="books.length === 0" class="info">
-          ℹ️ 點擊下方按鈕匯入書籍資料
-        </div>
-        <div v-else class="success">
-          ✅ 已匯入 {{ books.length }} 本書籍
-        </div>
-      </div>
+      <!-- 第一區：說明、匯入、價格設定 -->
+      <ControlPanel
+        :is-on-wishlist="isOnWishlist"
+        :books="books"
+        :target-price="targetPrice"
+        :is-loading="isLoading"
+        :is-calculating="isCalculating"
+        @import-books="importBooks"
+        @find-combinations="findCombinations"
+        @update-target-price="updateTargetPrice"
 
-      <!-- 匯入按鈕 -->
-      <div class="import-section">
-        <button 
-          @click="importBooks" 
-          :disabled="!isOnWishlist || isLoading"
-          class="import-btn"
-        >
-          <span v-if="isLoading">匯入中...</span>
-          <span v-else>🔄 匯入書籍資料</span>
-        </button>
-      </div>
+      />
 
-      <!-- 書籍列表 -->
-      <div v-if="books.length > 0" class="books-section">
-        <h3>書籍清單</h3>
-        <div class="books-list">
-          <div v-for="book in books" :key="book.id" class="book-item">
-            <div class="book-info">
-              <div class="book-title">{{ book.title }}</div>
-              <div class="book-price">NT$ {{ book.price }}</div>
-            </div>
-            <input 
-              type="checkbox" 
-              v-model="book.selected"
-              class="book-checkbox"
-            >
-          </div>
-        </div>
-      </div>
+      <!-- 第二區：書籍清單 -->
+      <BooksList
+        :books="books"
+        @delete-book="deleteBook"
+        @update-book-selection="updateBookSelection"
+        @clear-all-data="clearAllData"
+      />
 
-      <!-- 價格設定 -->
-      <div v-if="books.length > 0" class="price-section">
-        <label for="target-price" class="price-label">
-          目標最低合計價格
-        </label>
-        <input 
-          type="number" 
-          id="target-price"
-          v-model.number="targetPrice"
-          placeholder="例如: 1000"
-          class="price-input"
-        >
-      </div>
-
-      <!-- 計算按鈕 -->
-      <div v-if="books.length > 0" class="calculate-section">
-        <button 
-          @click="findCombinations"
-          :disabled="!targetPrice || isCalculating"
-          class="calculate-btn"
-        >
-          <span v-if="isCalculating">計算中...</span>
-          <span v-else>🔍 找出組合</span>
-        </button>
-      </div>
-
-      <!-- 結果顯示 -->
-      <div v-if="combinations.length > 0" class="results-section">
-        <h3>推薦組合</h3>
-        <div class="combinations-list">
-          <div 
-            v-for="(combo, index) in combinations" 
-            :key="index"
-            class="combination-item"
-          >
-            <div class="combo-header">
-              <span class="combo-title">組合 {{ index + 1 }}</span>
-              <span class="combo-total">NT$ {{ combo.total }}</span>
-            </div>
-            <div class="combo-books">
-              <div 
-                v-for="book in combo.books" 
-                :key="book.id"
-                class="combo-book"
-              >
-                {{ book.title }} - NT$ {{ book.price }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="hasSearched && combinations.length === 0" class="no-results">
-        😕 找不到符合條件的組合，請調整目標價格
-      </div>
+      <!-- 第三區：組合結果 -->
+      <CombinationResults
+        :combinations="combinations"
+        :has-searched="hasSearched"
+        :is-calculating="isCalculating"
+        :calculation-progress="calculationProgress"
+      />
     </main>
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import Header from '../components/Header.vue'
+import ControlPanel from '../components/ControlPanel.vue'
+import BooksList from '../components/BooksList.vue'
+import CombinationResults from '../components/CombinationResults.vue'
 
-export default {
-  name: 'PopupApp',
-  setup() {
-    const isOnWishlist = ref(false)
-    const books = ref([])
-    const targetPrice = ref(null)
-    const combinations = ref([])
-    const isLoading = ref(false)
-    const isCalculating = ref(false)
-    const hasSearched = ref(false)
+interface Book {
+  id: string
+  productId: string
+  title: string
+  price: number
+  selected: boolean
+}
 
-    // 檢查是否在願望清單頁面
-    const checkCurrentPage = async () => {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-        isOnWishlist.value = tab.url && tab.url.includes('kobo.com') && tab.url.includes('wishlist')
-      } catch (error) {
-        console.error('檢查頁面失敗:', error)
-      }
+interface BookCombination {
+  books: Book[]
+  total: number
+}
+
+interface ExtractBooksResponse {
+  books: Array<{
+    title: string
+    price: number
+    productId: string
+  }>
+}
+
+interface ChromeMessage {
+  action: string
+}
+
+const { t } = useI18n()
+
+const isOnWishlist: Ref<boolean> = ref(false)
+const books: Ref<Book[]> = ref([])
+const targetPrice: Ref<number | null> = ref(null)
+const combinations: Ref<BookCombination[]> = ref([])
+const isLoading: Ref<boolean> = ref(false)
+const isCalculating: Ref<boolean> = ref(false)
+const hasSearched: Ref<boolean> = ref(false)
+const calculationProgress: Ref<number> = ref(0)
+
+const checkCurrentPage = async (): Promise<void> => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    isOnWishlist.value = tab.url ? 
+      tab.url.includes('kobo.com') && tab.url.includes('wishlist') : 
+      false
+  } catch (error) {
+  }
+}
+
+const importBooks = async (): Promise<void> => {
+  if (!isOnWishlist.value) return
+  
+  isLoading.value = true
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    
+    if (!tab.id) {
+      throw new Error('無法取得目前分頁 ID')
     }
-
-    // 匯入書籍資料
-    const importBooks = async () => {
-      if (!isOnWishlist.value) return
-      
-      isLoading.value = true
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-        
-        // 向 content script 發送訊息
-        const response = await chrome.tabs.sendMessage(tab.id, { action: 'extractBooks' })
-        
-        if (response && response.books) {
-          books.value = response.books.map((book, index) => ({
-            id: index,
-            title: book.title,
-            price: book.price,
-            selected: true
-          }))
+    
+    const response = await chrome.tabs.sendMessage(
+      tab.id, 
+      { action: 'extractBooks' } as ChromeMessage
+    ) as ExtractBooksResponse
+    
+    if (response && response.books) {
+      response.books.forEach((book) => {
+        if (!book.productId) {
+          return
         }
+
+        const existingIndex = books.value.findIndex(b => b.productId === book.productId)
+        
+        const bookData = {
+          productId: book.productId,
+          title: book.title,
+          price: book.price,
+          selected: true
+        }
+
+        if (existingIndex !== -1) {
+          books.value[existingIndex] = {
+            ...books.value[existingIndex],
+            ...bookData
+          }
+        } else {
+          books.value.push({
+            id: book.productId,
+            ...bookData
+          })
+        }
+      })
+      
+      
+      
+      await saveBooksToStorage()
+    } else {
+    }
       } catch (error) {
-        console.error('匯入書籍失敗:', error)
-        alert('匯入失敗，請確認您在 KOBO 願望清單頁面')
-      } finally {
-        isLoading.value = false
+    alert(t('messages.importFailed'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const deleteBook = async (bookId: number): Promise<void> => {
+  books.value = books.value.filter(book => book.id !== bookId)
+  
+  await clearStaleResults()
+  
+  await saveBooksToStorage()
+  
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
+  }
+}
+
+const updateTargetPrice = async (value: number | null): Promise<void> => {
+  const oldTargetPrice = targetPrice.value
+  targetPrice.value = value
+  
+  if (oldTargetPrice !== value && hasSearched.value) {
+    combinations.value = []
+    hasSearched.value = false
+    await chrome.storage.local.remove(['koboCombinations', 'koboHasSearched', 'koboLastCalculated'])
+  }
+  
+  await saveBooksToStorage()
+}
+
+const updateBookSelection = async (updatedBook: Book): Promise<void> => {
+  const book = books.value.find(b => b.id === updatedBook.id)
+  if (book) {
+    book.selected = updatedBook.selected
+    
+    await clearStaleResults()
+    
+    await saveBooksToStorage()
+  }
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
+  }
+}
+
+const findCombinations = (): void => {
+  if (!targetPrice.value) return
+  
+  isCalculating.value = true
+  hasSearched.value = true
+  combinations.value = []
+  calculationProgress.value = 0
+
+  const selectedBooks: Book[] = books.value.filter(book => book.selected)
+  const target: number = targetPrice.value
+
+  const findAllCombinationsAsync = async (bookList: Book[], targetAmount: number): Promise<BookCombination[]> => {
+    if (bookList.length > 25) {
+      return await findCombinationsForLargeSet(bookList, targetAmount)
+    }
+    
+    return await findCombinationsStandard(bookList, targetAmount)
+  }
+
+  const findCombinationsStandard = async (bookList: Book[], targetAmount: number): Promise<BookCombination[]> => {
+    const maxHeapSize = 5
+    const bestCombinations: BookCombination[] = []
+    
+    let processedCombinations = 0
+    let lastProgressUpdate = Date.now()
+    let lastYieldTime = Date.now()
+    
+    const suffixSums: number[] = new Array(bookList.length + 1).fill(0)
+    for (let i = bookList.length - 1; i >= 0; i--) {
+      suffixSums[i] = suffixSums[i + 1] + bookList[i].price
+    }
+    
+    
+    const insertCombination = (combo: BookCombination): void => {
+      if (combo.total < targetAmount) return
+      
+      
+      let insertIndex = bestCombinations.length
+      for (let i = 0; i < bestCombinations.length; i++) {
+        if (combo.total < bestCombinations[i].total) {
+          insertIndex = i
+          break
+        }
+      }
+      
+      bestCombinations.splice(insertIndex, 0, combo)
+      
+      
+      if (bestCombinations.length > maxHeapSize) {
+        bestCombinations.pop()
       }
     }
-
-    // 找出組合的演算法
-    const findCombinations = () => {
-      if (!targetPrice.value) return
+    
+    const updateProgress = async (): Promise<void> => {
+      processedCombinations++
+      const now = Date.now()
       
-      isCalculating.value = true
-      hasSearched.value = true
-      combinations.value = []
+      if (now - lastProgressUpdate > 50) {
+        const estimatedProgress = Math.min(95, (processedCombinations / (bookList.length * 1000)) * 100)
+        calculationProgress.value = Math.round(estimatedProgress)
+        lastProgressUpdate = now
+      }
+      
+      if (now - lastYieldTime > 10) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+        lastYieldTime = Date.now()
+      }
+    }
+    
+    const generateCombinations = async (
+      index: number, 
+      currentCombo: Book[], 
+      currentTotal: number
+    ): Promise<void> => {
+      await updateProgress()
+      
+      if (bestCombinations.length === maxHeapSize && 
+          currentTotal > bestCombinations[maxHeapSize - 1].total) {
+        return
+      }
+      
+      if (currentTotal >= targetAmount) {
+        insertCombination({
+          books: currentCombo.slice(),
+          total: currentTotal
+        })
+        return
+      }
+      
+      if (index >= bookList.length) return
+      
+      const currentBook = bookList[index]
+      
+      if (currentTotal + suffixSums[index] < targetAmount) {
+        return
+      }
+      
+      currentCombo.push(currentBook)
+      await generateCombinations(
+        index + 1, 
+        currentCombo, 
+        currentTotal + currentBook.price
+      )
+      currentCombo.pop()
+      
+      await generateCombinations(index + 1, currentCombo, currentTotal)
+    }
+    
+    await generateCombinations(0, [], 0)
+    
+    return bestCombinations
+  }
 
-      const selectedBooks = books.value.filter(book => book.selected)
-      const target = targetPrice.value
+  const findCombinationsForLargeSet = async (bookList: Book[], targetAmount: number): Promise<BookCombination[]> => {
+    
+    const sortedBooks = [...bookList].sort((a, b) => b.price - a.price)
+    const results: BookCombination[] = []
+    const maxResults = 5
+    
 
-      // 使用動態規劃找出所有可能的組合
-      const findAllCombinations = (bookList, targetAmount) => {
-        const results = []
+    
+    for (let startIndex = 0; startIndex < sortedBooks.length && results.length < maxResults; startIndex++) {
+      let currentCombo: Book[] = []
+      let currentTotal = 0
+      
+      for (let i = startIndex; i < sortedBooks.length; i++) {
         
-        // 遞迴函數來生成組合
-        const generateCombinations = (index, currentCombo, currentTotal) => {
-          if (currentTotal >= targetAmount) {
+        const book = sortedBooks[i]
+        if (currentTotal + book.price >= targetAmount) {
+          currentCombo.push(book)
+          currentTotal += book.price
+          
+          const duplicate = results.find(r => r.total === currentTotal)
+          if (!duplicate) {
             results.push({
               books: [...currentCombo],
               total: currentTotal
             })
-            return
           }
-          
-          if (index >= bookList.length) return
-          
-          // 包含當前書籍
-          generateCombinations(
-            index + 1, 
-            [...currentCombo, bookList[index]], 
-            currentTotal + bookList[index].price
-          )
-          
-          // 不包含當前書籍
-          generateCombinations(index + 1, currentCombo, currentTotal)
+          break
+        } else {
+          currentCombo.push(book)
+          currentTotal += book.price
         }
-        
-        generateCombinations(0, [], 0)
-        
-        // 排序並限制結果數量
-        return results
-          .filter(combo => combo.total >= targetAmount)
-          .sort((a, b) => a.total - b.total)
-          .slice(0, 10) // 最多顯示10個組合
       }
-
-      setTimeout(() => {
-        combinations.value = findAllCombinations(selectedBooks, target)
-        isCalculating.value = false
-      }, 100)
     }
+    
+    return results.sort((a, b) => a.total - b.total).slice(0, maxResults)
+  }
 
-    onMounted(() => {
-      checkCurrentPage()
-    })
+  setTimeout(async () => {
+    try {
+      combinations.value = await findAllCombinationsAsync(selectedBooks, target)
+      calculationProgress.value = 100
+      
+      await saveBooksToStorage()
+      
+    } catch (error) {
+    } finally {
+      setTimeout(() => {
+        isCalculating.value = false
+        calculationProgress.value = 0
+      }, 1000)
+    }
+  }, 100)
+}
 
-    return {
-      isOnWishlist,
-      books,
-      targetPrice,
-      combinations,
-      isLoading,
-      isCalculating,
-      hasSearched,
-      importBooks,
-      findCombinations
+const validateCombinationResults = (savedCombinations: BookCombination[]): boolean => {
+  try {
+    
+    if (!savedCombinations || savedCombinations.length === 0) {
+      return false
+    }
+    
+    if (!books.value || books.value.length === 0) {
+      return false
+    }
+    
+    for (let i = 0; i < savedCombinations.length; i++) {
+      const combination = savedCombinations[i]
+      
+      if (!combination) {
+        return false
+      }
+      
+      if (!combination.books) {
+        return false
+      }
+      
+      if (!Array.isArray(combination.books)) {
+        return false
+      }
+      
+      if (combination.books.length === 0) {
+        return false
+      }
+      
+      for (const savedBook of combination.books) {
+        const currentBook = books.value.find(book => 
+          book.id === savedBook.id && 
+          book.title === savedBook.title && 
+          book.price === savedBook.price
+        )
+        
+        if (!currentBook) {
+          return false
+        }
+      }
+    }
+    
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+const clearStaleResults = async (): Promise<void> => {
+  if (hasSearched.value && combinations.value.length > 0) {
+    const isValid = validateCombinationResults(combinations.value)
+    if (!isValid) {
+      combinations.value = []
+      hasSearched.value = false
+      await chrome.storage.local.remove(['koboCombinations', 'koboHasSearched', 'koboLastCalculated'])
     }
   }
 }
+
+const loadBooksFromStorage = async (): Promise<void> => {
+  try {
+    
+    const result = await chrome.storage.local.get([
+      'koboBooks', 
+      'koboTargetPrice', 
+      'koboCombinations', 
+      'koboHasSearched',
+      'koboLastCalculated'
+    ])
+    
+    if (result.koboBooks) {
+      let loadedBooks = []
+      
+      if (Array.isArray(result.koboBooks)) {
+        loadedBooks = result.koboBooks
+      } 
+      else if (typeof result.koboBooks === 'object') {
+        loadedBooks = Object.values(result.koboBooks).filter(book => 
+          book && typeof book === 'object' && book.title && typeof book.price === 'number'
+        )
+      }
+      
+      if (loadedBooks.length > 0) {
+        books.value = loadedBooks
+      }
+    } else {
+    }
+    
+    if (result.koboTargetPrice && typeof result.koboTargetPrice === 'number') {
+      targetPrice.value = result.koboTargetPrice
+    } else {
+    }
+    
+    if (result.koboCombinations && books.value.length > 0) {
+      
+      let fixedCombinations: BookCombination[] = []
+      
+      if (Array.isArray(result.koboCombinations)) {
+        fixedCombinations = result.koboCombinations
+      } else if (typeof result.koboCombinations === 'object') {
+        fixedCombinations = Object.values(result.koboCombinations)
+      }
+      
+      
+      fixedCombinations = fixedCombinations.map((combo, index) => {
+        
+        let fixedBooks: Book[] = []
+        
+        if (Array.isArray(combo.books)) {
+          fixedBooks = combo.books
+        } else if (typeof combo.books === 'object' && combo.books !== null) {
+          fixedBooks = Object.values(combo.books)
+        }
+        
+        return {
+          books: fixedBooks,
+          total: combo.total
+        }
+      })
+      
+      
+      const isResultValid = validateCombinationResults(fixedCombinations)
+      
+      if (isResultValid) {
+        combinations.value = fixedCombinations
+        
+        if (result.koboHasSearched) {
+          hasSearched.value = true
+          
+
+        }
+      } else {
+        combinations.value = []
+        hasSearched.value = false
+        await chrome.storage.local.remove(['koboCombinations', 'koboHasSearched', 'koboLastCalculated'])
+      }
+    } else if (result.koboCombinations && books.value.length === 0) {
+    } else {
+    }
+    
+  } catch (error) {
+  }
+}
+
+const saveBooksToStorage = async (): Promise<void> => {
+  try {
+    
+    const booksArray = JSON.parse(JSON.stringify(books.value))
+    const combinationsArray = JSON.parse(JSON.stringify(combinations.value))
+    
+    
+    await chrome.storage.local.set({
+      koboBooks: booksArray,
+      koboTargetPrice: targetPrice.value,
+      koboCombinations: combinationsArray,
+      koboHasSearched: hasSearched.value,
+      koboLastCalculated: Date.now()
+    })
+    
+    
+    const verification = await chrome.storage.local.get([
+      'koboBooks', 
+      'koboTargetPrice', 
+      'koboCombinations', 
+      'koboHasSearched',
+      'koboLastCalculated'
+    ])
+    
+  } catch (error) {
+  }
+}
+
+const clearAllData = async (): Promise<void> => {
+  try {
+    await chrome.storage.local.remove([
+      'koboBooks', 
+      'koboTargetPrice', 
+      'koboCombinations', 
+      'koboHasSearched',
+      'koboLastCalculated'
+    ])
+    books.value = []
+    targetPrice.value = null
+    combinations.value = []
+    hasSearched.value = false
+  } catch (error) {
+  }
+}
+
+const testChromeStorage = async (): Promise<void> => {
+  try {
+    
+    await chrome.storage.local.set({ testKey: 'testValue' })
+    
+    const testResult = await chrome.storage.local.get(['testKey'])
+    
+    await chrome.storage.local.remove(['testKey'])
+    
+  } catch (error) {
+    alert(t('messages.storageError'))
+  }
+}
+
+onMounted((): void => {
+  testChromeStorage()
+  checkCurrentPage()
+  loadBooksFromStorage()
+})
 </script>
 
 <style scoped>
 .popup-container {
   padding: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #212529;
   min-height: 100vh;
+  width: 800px;
   box-sizing: border-box;
 }
 
-.header {
-  text-align: center;
-  margin-bottom: 20px;
-}
 
-.title {
-  margin: 0 0 4px 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  opacity: 0.9;
-}
 
 .main-content {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  height: calc(100vh - 120px);
 }
 
-.status-section {
-  padding: 12px;
-  border-radius: 8px;
-  text-align: center;
-  font-size: 14px;
-}
 
-.warning {
-  background: rgba(255, 193, 7, 0.2);
-  border: 1px solid rgba(255, 193, 7, 0.5);
-}
-
-.info {
-  background: rgba(13, 202, 240, 0.2);
-  border: 1px solid rgba(13, 202, 240, 0.5);
-}
-
-.success {
-  background: rgba(25, 135, 84, 0.2);
-  border: 1px solid rgba(25, 135, 84, 0.5);
-}
-
-.import-btn, .calculate-btn {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.import-btn:hover:not(:disabled), 
-.calculate-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.import-btn:disabled, 
-.calculate-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.books-section h3 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-}
-
-.books-list {
-  max-height: 150px;
-  overflow-y: auto;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 8px;
-}
-
-.book-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.book-item:last-child {
-  border-bottom: none;
-}
-
-.book-info {
-  flex: 1;
-}
-
-.book-title {
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.book-price {
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-.book-checkbox {
-  margin-left: 8px;
-}
-
-.price-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.price-label {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.price-input {
-  padding: 10px;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #333;
-}
-
-.price-input::placeholder {
-  color: #666;
-}
-
-.results-section h3 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-}
-
-.combinations-list {
-  max-height: 200px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.combination-item {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.combo-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.combo-title {
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.combo-total {
-  font-weight: 600;
-  font-size: 14px;
-  color: #90EE90;
-}
-
-.combo-books {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.combo-book {
-  font-size: 12px;
-  opacity: 0.9;
-  padding-left: 8px;
-  border-left: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.no-results {
-  text-align: center;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  font-size: 14px;
-}
 </style>
