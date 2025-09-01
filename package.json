@@ -1,6 +1,6 @@
 {
   "name": "kobo-slash",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "幫助使用者快速將 KOBO 願望清單中的書籍找出適合結帳的組合",
   "main": "index.js",
   "scripts": {
