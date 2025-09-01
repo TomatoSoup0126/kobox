@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Package manager lockfiles
+package-lock.json
+yarn.lock
+
+# Build output (keep dist for Chrome extension)
+# dist/
+build/
+dist/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

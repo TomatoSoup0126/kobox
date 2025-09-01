@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "KOBO Slash",
+  "version": "1.0",
+  "description": "幫助使用者快速將願望清單中的書籍找出適合結帳的組合",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.kobo.com/*"
+  ],
+  "action": {
+    "default_popup": "dist/src/popup/popup.html",
+    "default_title": "KOBO Slash"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.kobo.com/*/wishlist*"],
+      "js": ["dist/content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["dist/src/popup/popup.html"],
+      "matches": ["https://www.kobo.com/*"]
+    }
+  ]
+}
