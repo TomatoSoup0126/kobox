@@ -17,7 +17,7 @@
 
 ### Installation
 
-
+- Visit [Chrome Web Store](https://chromewebstore.google.com/detail/kobox/ghlalaokkeodecoaelhjfmfcgknifkno?authuser=0&hl=zh-TW) to install the extension
 
 ### How to Use
 
