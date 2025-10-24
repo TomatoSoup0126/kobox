@@ -31,7 +31,10 @@ export default defineConfig({
           fs.unlinkSync(htmlSource)
           try {
             fs.rmdirSync(path.join(outDir, 'src/popup'))
-            fs.rmdirSync(path.join(outDir, 'src'))
+            const srcDir = path.join(outDir, 'src')
+            if (fs.existsSync(srcDir) && fs.readdirSync(srcDir).length === 0) {
+              fs.rmdirSync(srcDir)
+            }
           } catch (_e) {
           }
         }
@@ -59,6 +62,7 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'src/popup/popup.html'),
         content: resolve(__dirname, 'src/content/content.js'),
+        background: resolve(__dirname, 'src/background/background.js'),
       },
       output: {
         entryFileNames: (chunkInfo) => {

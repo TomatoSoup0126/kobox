@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, type Ref } from 'vue'
+import { ref, onMounted, onUnmounted, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Header from '../components/Header.vue'
 import ControlPanel from '../components/ControlPanel.vue'
@@ -195,249 +195,32 @@ const findCombinations = (): void => {
   const selectedBooks: Book[] = books.value.filter(book => book.selected)
   const target: number = targetPrice.value
 
-  // 內嵌 Worker 程式碼以避免 Chrome 擴充功能的檔案載入問題
-  const workerCode = `
-/**
- * Web Worker for finding book combinations using dynamic programming
- */
+  // 將響應式物件轉換為純 JavaScript 物件以避免 DataCloneError
+  const plainBooks = selectedBooks.map(book => ({
+    id: book.id,
+    productId: book.productId,
+    title: book.title,
+    price: book.price,
+    selected: book.selected
+  }))
 
-class CombinationFinder {
-  constructor() {
-    this.maxResults = 5;
-  }
-
-  /**
-   * 使用動態規劃找到最佳的書籍組合
-   * @param {Array} books - 書籍陣列
-   * @param {number} targetPrice - 目標價格
-   * @returns {Array} 最佳組合陣列
-   */
-  findOptimalCombinations(books, targetPrice) {
-    const n = books.length;
-    if (n === 0 || targetPrice <= 0) return [];
-
-    // 使用 Map 來儲存每個價格對應的最佳組合
-    // key: 價格, value: { books: [], total: number }
-    const dp = new Map();
-    dp.set(0, { books: [], total: 0 });
-
-    let processedItems = 0;
-    const totalOperations = n * targetPrice;
-
-    // 動態規劃：對每本書進行處理
-    for (let i = 0; i < n; i++) {
-      const book = books[i];
-      const newEntries = new Map();
-
-      // 遍歷當前所有可能的組合
-      for (const [currentPrice, combination] of dp.entries()) {
-        const newPrice = currentPrice + book.price;
-        
-        // 只考慮不超過目標價格太多的組合（允許一些彈性）
-        if (newPrice <= targetPrice * 1.5) {
-          // 如果這個價格還沒有組合，或者當前組合的書籍數量更少
-          if (!dp.has(newPrice) || 
-              (!newEntries.has(newPrice) && combination.books.length + 1 < dp.get(newPrice).books.length)) {
-            newEntries.set(newPrice, {
-              books: [...combination.books, book],
-              total: newPrice
-            });
-          }
-        }
-
-        processedItems++;
-        // 定期發送進度更新
-        if (processedItems % 1000 === 0) {
-          const progress = Math.min(95, (processedItems / totalOperations) * 100);
-          self.postMessage({
-            type: 'progress',
-            progress: Math.round(progress)
-          });
-        }
-      }
-
-      // 將新的組合加入到 dp 中
-      for (const [price, combination] of newEntries.entries()) {
-        dp.set(price, combination);
-      }
-
-      // 限制 dp 的大小以避免記憶體問題
-      if (dp.size > 10000) {
-        this.pruneDPTable(dp, targetPrice);
-      }
-    }
-
-    // 找出最符合條件的組合
-    return this.selectBestCombinations(dp, targetPrice);
-  }
-
-  /**
-   * 修剪動態規劃表格以節省記憶體
-   * @param {Map} dp - 動態規劃表格
-   * @param {number} targetPrice - 目標價格
-   */
-  pruneDPTable(dp, targetPrice) {
-    const entries = Array.from(dp.entries());
-    
-    // 按照與目標價格的接近程度排序
-    entries.sort((a, b) => {
-      const diffA = Math.abs(a[0] - targetPrice);
-      const diffB = Math.abs(b[0] - targetPrice);
-      if (diffA !== diffB) return diffA - diffB;
-      return a[1].books.length - b[1].books.length; // 書籍數量少的優先
-    });
-
-    // 只保留前 5000 個最好的組合
-    dp.clear();
-    for (let i = 0; i < Math.min(5000, entries.length); i++) {
-      dp.set(entries[i][0], entries[i][1]);
-    }
-  }
-
-  /**
-   * 從動態規劃結果中選擇最佳組合
-   * @param {Map} dp - 動態規劃表格
-   * @param {number} targetPrice - 目標價格
-   * @returns {Array} 最佳組合陣列
-   */
-  selectBestCombinations(dp, targetPrice) {
-    const validCombinations = [];
-
-    // 收集所有達到或超過目標價格的組合
-    for (const [price, combination] of dp.entries()) {
-      if (price >= targetPrice) {
-        validCombinations.push(combination);
-      }
-    }
-
-    // 如果沒有達到目標價格的組合，選擇最接近的
-    if (validCombinations.length === 0) {
-      let closestPrice = 0;
-      let closestCombination = null;
-
-      for (const [price, combination] of dp.entries()) {
-        if (price > closestPrice) {
-          closestPrice = price;
-          closestCombination = combination;
-        }
-      }
-
-      if (closestCombination) {
-        validCombinations.push(closestCombination);
-      }
-    }
-
-    // 排序：優先選擇價格接近目標且書籍數量少的組合
-    validCombinations.sort((a, b) => {
-      const diffA = Math.abs(a.total - targetPrice);
-      const diffB = Math.abs(b.total - targetPrice);
-      
-      // 如果都達到目標價格，選擇價格較低的
-      if (a.total >= targetPrice && b.total >= targetPrice) {
-        if (a.total !== b.total) return a.total - b.total;
-        return a.books.length - b.books.length;
-      }
-      
-      // 否則選擇更接近目標價格的
-      if (diffA !== diffB) return diffA - diffB;
-      return a.books.length - b.books.length;
-    });
-
-    // 返回前 maxResults 個結果
-    return validCombinations.slice(0, this.maxResults);
-  }
-}
-
-// Worker 訊息處理
-self.onmessage = function(e) {
-  const { books, targetPrice } = e.data;
-  
-  try {
-    const finder = new CombinationFinder();
-    const combinations = finder.findOptimalCombinations(books, targetPrice);
-    
-    // 發送完成訊息
-    self.postMessage({
-      type: 'complete',
-      combinations: combinations,
-      progress: 100
-    });
-  } catch (error) {
-    // 發送錯誤訊息
-    self.postMessage({
-      type: 'error',
-      error: error.message
-    });
-  }
-};
-  `
-
-  // 使用 Blob URL 創建 Worker
-  const blob = new Blob([workerCode], { type: 'application/javascript' })
-  const worker = new Worker(URL.createObjectURL(blob))
-  
-  worker.onmessage = async (e) => {
-    const { type, combinations: workerCombinations, progress, error } = e.data
-    
-    switch (type) {
-      case 'progress':
-        calculationProgress.value = progress
-        break
-        
-      case 'complete':
-        combinations.value = workerCombinations || []
-        calculationProgress.value = 100
-        
-        try {
-          await saveBooksToStorage()
-        } catch (saveError) {
-          console.error('儲存結果時發生錯誤:', saveError)
-        }
-        
-        // 延遲重置狀態
-        setTimeout(() => {
-          isCalculating.value = false
-          calculationProgress.value = 0
-        }, 1000)
-        
-        worker.terminate()
-        URL.revokeObjectURL(blob)
-        break
-        
-      case 'error':
-        console.error('Worker 計算錯誤:', error)
-        isCalculating.value = false
-        calculationProgress.value = 0
-        worker.terminate()
-        URL.revokeObjectURL(blob)
-        break
-    }
-  }
-  
-  worker.onerror = (error) => {
-    console.error('Worker 錯誤:', error)
-    isCalculating.value = false
-    calculationProgress.value = 0
-    worker.terminate()
-    URL.revokeObjectURL(blob)
-  }
-  
-  // 發送資料給 Worker
-  setTimeout(() => {
-    // 將響應式物件轉換為純 JavaScript 物件以避免 DataCloneError
-    const plainBooks = selectedBooks.map(book => ({
-      id: book.id,
-      productId: book.productId,
-      title: book.title,
-      price: book.price,
-      selected: book.selected
-    }))
-    
-    worker.postMessage({
+  chrome.runtime.sendMessage({
+    action: 'findCombinations',
+    data: {
       books: plainBooks,
       targetPrice: target
-    })
-  }, 100)
+    }
+  }).then(response => {
+    if (response.error) {
+      console.error('計算請求錯誤:', response.error)
+      isCalculating.value = false
+      calculationProgress.value = 0
+    }
+  }).catch(error => {
+    console.error('發送計算請求失敗:', error)
+    isCalculating.value = false
+    calculationProgress.value = 0
+  })
 }
 
 const validateCombinationResults = (savedCombinations: BookCombination[]): boolean => {
@@ -644,10 +427,46 @@ const testChromeStorage = async (): Promise<void> => {
   }
 }
 
+const handleBackgroundMessage = (message: any) => {
+  switch (message.type) {
+    case 'calculation_progress':
+      calculationProgress.value = message.progress
+      break
+      
+    case 'calculation_complete':
+      combinations.value = message.combinations || []
+      calculationProgress.value = 100
+      
+      saveBooksToStorage().catch(saveError => {
+        console.error('儲存結果時發生錯誤:', saveError)
+      })
+      
+      setTimeout(() => {
+        isCalculating.value = false
+        calculationProgress.value = 0
+      }, 1000)
+      break
+      
+    case 'calculation_error':
+      console.error('Background 計算錯誤:', message.error)
+      isCalculating.value = false
+      calculationProgress.value = 0
+      break
+  }
+}
+
 onMounted((): void => {
   testChromeStorage()
   checkCurrentPage()
   loadBooksFromStorage()
+  
+  chrome.runtime.onMessage.addListener(handleBackgroundMessage)
+})
+
+onUnmounted(() => {
+  if (chrome.runtime.onMessage.hasListener(handleBackgroundMessage)) {
+    chrome.runtime.onMessage.removeListener(handleBackgroundMessage)
+  }
 })
 </script>
 
