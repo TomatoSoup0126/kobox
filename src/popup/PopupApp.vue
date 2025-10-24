@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, type Ref } from 'vue'
+import { ref, onMounted, onUnmounted, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Header from '../components/Header.vue'
 import ControlPanel from '../components/ControlPanel.vue'
@@ -195,160 +195,32 @@ const findCombinations = (): void => {
   const selectedBooks: Book[] = books.value.filter(book => book.selected)
   const target: number = targetPrice.value
 
-  const findAllCombinationsAsync = async (bookList: Book[], targetAmount: number): Promise<BookCombination[]> => {
-    if (bookList.length > 25) {
-      return await findCombinationsForLargeSet(bookList, targetAmount)
-    }
-    
-    return await findCombinationsStandard(bookList, targetAmount)
-  }
+  // 將響應式物件轉換為純 JavaScript 物件以避免 DataCloneError
+  const plainBooks = selectedBooks.map(book => ({
+    id: book.id,
+    productId: book.productId,
+    title: book.title,
+    price: book.price,
+    selected: book.selected
+  }))
 
-  const findCombinationsStandard = async (bookList: Book[], targetAmount: number): Promise<BookCombination[]> => {
-    const maxHeapSize = 5
-    const bestCombinations: BookCombination[] = []
-    
-    let processedCombinations = 0
-    let lastProgressUpdate = Date.now()
-    let lastYieldTime = Date.now()
-    
-    const suffixSums: number[] = new Array(bookList.length + 1).fill(0)
-    for (let i = bookList.length - 1; i >= 0; i--) {
-      suffixSums[i] = suffixSums[i + 1] + bookList[i].price
+  chrome.runtime.sendMessage({
+    action: 'findCombinations',
+    data: {
+      books: plainBooks,
+      targetPrice: target
     }
-    
-    
-    const insertCombination = (combo: BookCombination): void => {
-      if (combo.total < targetAmount) return
-      
-      
-      let insertIndex = bestCombinations.length
-      for (let i = 0; i < bestCombinations.length; i++) {
-        if (combo.total < bestCombinations[i].total) {
-          insertIndex = i
-          break
-        }
-      }
-      
-      bestCombinations.splice(insertIndex, 0, combo)
-      
-      
-      if (bestCombinations.length > maxHeapSize) {
-        bestCombinations.pop()
-      }
+  }).then(response => {
+    if (response.error) {
+      console.error('計算請求錯誤:', response.error)
+      isCalculating.value = false
+      calculationProgress.value = 0
     }
-    
-    const updateProgress = async (): Promise<void> => {
-      processedCombinations++
-      const now = Date.now()
-      
-      if (now - lastProgressUpdate > 50) {
-        const estimatedProgress = Math.min(95, (processedCombinations / (bookList.length * 1000)) * 100)
-        calculationProgress.value = Math.round(estimatedProgress)
-        lastProgressUpdate = now
-      }
-      
-      if (now - lastYieldTime > 10) {
-        await new Promise(resolve => setTimeout(resolve, 0))
-        lastYieldTime = Date.now()
-      }
-    }
-    
-    const generateCombinations = async (
-      index: number, 
-      currentCombo: Book[], 
-      currentTotal: number
-    ): Promise<void> => {
-      await updateProgress()
-      
-      if (bestCombinations.length === maxHeapSize && 
-          currentTotal > bestCombinations[maxHeapSize - 1].total) {
-        return
-      }
-      
-      if (currentTotal >= targetAmount) {
-        insertCombination({
-          books: currentCombo.slice(),
-          total: currentTotal
-        })
-        return
-      }
-      
-      if (index >= bookList.length) return
-      
-      const currentBook = bookList[index]
-      
-      if (currentTotal + suffixSums[index] < targetAmount) {
-        return
-      }
-      
-      currentCombo.push(currentBook)
-      await generateCombinations(
-        index + 1, 
-        currentCombo, 
-        currentTotal + currentBook.price
-      )
-      currentCombo.pop()
-      
-      await generateCombinations(index + 1, currentCombo, currentTotal)
-    }
-    
-    await generateCombinations(0, [], 0)
-    
-    return bestCombinations
-  }
-
-  const findCombinationsForLargeSet = async (bookList: Book[], targetAmount: number): Promise<BookCombination[]> => {
-    
-    const sortedBooks = [...bookList].sort((a, b) => b.price - a.price)
-    const results: BookCombination[] = []
-    const maxResults = 5
-    
-
-    
-    for (let startIndex = 0; startIndex < sortedBooks.length && results.length < maxResults; startIndex++) {
-      let currentCombo: Book[] = []
-      let currentTotal = 0
-      
-      for (let i = startIndex; i < sortedBooks.length; i++) {
-        
-        const book = sortedBooks[i]
-        if (currentTotal + book.price >= targetAmount) {
-          currentCombo.push(book)
-          currentTotal += book.price
-          
-          const duplicate = results.find(r => r.total === currentTotal)
-          if (!duplicate) {
-            results.push({
-              books: [...currentCombo],
-              total: currentTotal
-            })
-          }
-          break
-        } else {
-          currentCombo.push(book)
-          currentTotal += book.price
-        }
-      }
-    }
-    
-    return results.sort((a, b) => a.total - b.total).slice(0, maxResults)
-  }
-
-  setTimeout(async () => {
-    try {
-      combinations.value = await findAllCombinationsAsync(selectedBooks, target)
-      calculationProgress.value = 100
-      
-      await saveBooksToStorage()
-      
-    } catch (error) {
-    } finally {
-      setTimeout(() => {
-        isCalculating.value = false
-        calculationProgress.value = 0
-      }, 1000)
-    }
-  }, 100)
+  }).catch(error => {
+    console.error('發送計算請求失敗:', error)
+    isCalculating.value = false
+    calculationProgress.value = 0
+  })
 }
 
 const validateCombinationResults = (savedCombinations: BookCombination[]): boolean => {
@@ -555,10 +427,46 @@ const testChromeStorage = async (): Promise<void> => {
   }
 }
 
+const handleBackgroundMessage = (message: any) => {
+  switch (message.type) {
+    case 'calculation_progress':
+      calculationProgress.value = message.progress
+      break
+      
+    case 'calculation_complete':
+      combinations.value = message.combinations || []
+      calculationProgress.value = 100
+      
+      saveBooksToStorage().catch(saveError => {
+        console.error('儲存結果時發生錯誤:', saveError)
+      })
+      
+      setTimeout(() => {
+        isCalculating.value = false
+        calculationProgress.value = 0
+      }, 1000)
+      break
+      
+    case 'calculation_error':
+      console.error('Background 計算錯誤:', message.error)
+      isCalculating.value = false
+      calculationProgress.value = 0
+      break
+  }
+}
+
 onMounted((): void => {
   testChromeStorage()
   checkCurrentPage()
   loadBooksFromStorage()
+  
+  chrome.runtime.onMessage.addListener(handleBackgroundMessage)
+})
+
+onUnmounted(() => {
+  if (chrome.runtime.onMessage.hasListener(handleBackgroundMessage)) {
+    chrome.runtime.onMessage.removeListener(handleBackgroundMessage)
+  }
 })
 </script>
 

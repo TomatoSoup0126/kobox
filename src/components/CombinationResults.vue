@@ -6,22 +6,21 @@
       
       <!-- 載入狀態 -->
       <div v-if="isCalculating" class="loading-container">
-        <div class="loading-animation">
-          <div class="loading-spinner">
-            <div class="spinner-ring"></div>
-            <div class="spinner-ring"></div>
-            <div class="spinner-ring"></div>
-          </div>
-          <div class="loading-text">
-            <div class="loading-title">🔍 {{ $t('results.searching') }}</div>
+        <div class="loading-text">
+          <div class="loading-title">🔍 {{ $t('results.searching') }}</div>
+          <div class="loading-percentage">
+            {{ calculationProgress }}%
           </div>
         </div>
-        <div class="loading-dots">
-          <div class="dot"></div>
-          <div class="dot"></div>
-          <div class="dot"></div>
-          <div class="dot"></div>
-          <div class="dot"></div>
+        
+        <!-- 進度條 -->
+        <div class="progress-bar-container">
+          <div class="progress-bar">
+            <div 
+              class="progress-fill" 
+              :style="{ width: `${calculationProgress}%` }"
+            ></div>
+          </div>
         </div>
       </div>
       
@@ -210,56 +209,12 @@ defineProps<Props>()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
-  min-height: 200px;
+  padding: 30px 20px;
   background: #f8f9fa;
   border-radius: 12px;
   border: 1px solid #e9ecef;
 }
 
-.loading-animation {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-
-.loading-spinner {
-  position: relative;
-  width: 60px;
-  height: 60px;
-}
-
-.spinner-ring {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border: 3px solid transparent;
-  border-radius: 50%;
-  animation: spin 2s linear infinite;
-}
-
-.spinner-ring:nth-child(1) {
-  border-top-color: #bf0000;
-  animation-delay: 0s;
-}
-
-.spinner-ring:nth-child(2) {
-  border-right-color: #0056b3;
-  animation-delay: -0.5s;
-  animation-duration: 1.5s;
-}
-
-.spinner-ring:nth-child(3) {
-  border-bottom-color: #6c757d;
-  animation-delay: -1s;
-  animation-duration: 1.8s;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
 
 .loading-text {
   text-align: center;
@@ -282,9 +237,9 @@ defineProps<Props>()
 
 .loading-percentage {
   font-size: 14px;
-  font-weight: 600;
-  color: #198754;
-  animation: glow 1.5s ease-in-out infinite;
+  font-weight: 500;
+  color: #495057;
+  margin-top: 4px;
 }
 
 @keyframes pulse {
@@ -303,36 +258,65 @@ defineProps<Props>()
   }
 }
 
-.loading-dots {
-  display: flex;
-  gap: 8px;
-  margin-top: 20px;
+.progress-bar-container {
+  width: 100%;
+  margin: 20px 0;
+  padding: 0 20px;
 }
 
-.dot {
-  width: 8px;
+.progress-bar {
+  width: 100%;
   height: 8px;
-  background: linear-gradient(45deg, #198754, #28a745);
-  border-radius: 50%;
-  animation: bounce 1.4s ease-in-out infinite both;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
-.dot:nth-child(3) { animation-delay: 0s; }
-.dot:nth-child(4) { animation-delay: 0.16s; }
-.dot:nth-child(5) { animation-delay: 0.32s; }
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #198754, #28a745, #20c997);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease-in-out;
+  animation: progressShine 2s ease-in-out infinite;
+  position: relative;
+}
 
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0.8);
-    opacity: 0.5;
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: progressGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes progressShine {
+  0%, 100% {
+    background-position: 0% 50%;
   }
-  40% {
-    transform: scale(1.2);
-    opacity: 1;
+  50% {
+    background-position: 100% 50%;
   }
 }
+
+@keyframes progressGlow {
+  0%, 100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+}
+
 
 .fade-in {
   animation: fadeInUp 0.6s ease-out both;
