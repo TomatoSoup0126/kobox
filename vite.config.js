@@ -5,7 +5,7 @@ import { resolve } from 'path'
 import fs from 'fs'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
   plugins: [
     vue(),
     VueI18nPlugin({
@@ -76,9 +76,10 @@ export default defineConfig({
     },
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: false
+    sourcemap: mode === 'development',
+    minify: command === 'build'
   },
   worker: {
     format: 'es'
   }
-})
+}))

@@ -5,7 +5,7 @@
 
 class CombinationFinder {
   constructor() {
-    this.maxResults = 5;
+    this.maxResults = 10;
   }
 
   /**
