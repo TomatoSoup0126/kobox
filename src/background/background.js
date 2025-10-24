@@ -23,8 +23,8 @@ class CombinationFinder {
     const dp = new Map();
     dp.set(0, { books: [], total: 0 });
 
-    let processedItems = 0;
-    const totalOperations = n * targetPrice;
+    let processedBooks = 0;
+    let lastReportedProgress = 0;
 
     // 動態規劃：對每本書進行處理
     for (let i = 0; i < n; i++) {
@@ -46,24 +46,26 @@ class CombinationFinder {
             });
           }
         }
-
-        processedItems++;
-        // 定期發送進度更新
-        if (processedItems % 1000 === 0) {
-          const progress = Math.min(95, (processedItems / totalOperations) * 100);
-          // 發送進度更新到 popup
-          chrome.runtime.sendMessage({
-            type: 'calculation_progress',
-            progress: Math.round(progress)
-          }).catch(() => {
-            // Popup 可能已關閉，忽略錯誤
-          });
-        }
       }
 
       // 將新的組合加入到 dp 中
       for (const [price, combination] of newEntries.entries()) {
         dp.set(price, combination);
+      }
+      
+      processedBooks++;
+      
+      const currentProgress = Math.min(95, (processedBooks / n) * 100);
+      const roundedProgress = Math.round(currentProgress);
+      
+      if (roundedProgress > lastReportedProgress) {
+        lastReportedProgress = roundedProgress;
+        
+        chrome.runtime.sendMessage({
+          type: 'calculation_progress',
+          progress: roundedProgress
+        }).catch(() => {
+        });
       }
 
       // 限制 dp 的大小以避免記憶體問題
@@ -160,8 +162,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     isCalculating = true;
-    
-    // 異步執行計算
     setTimeout(async () => {
       try {
         const combinations = finder.findOptimalCombinations(books, targetPrice);
@@ -172,13 +172,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           combinations: combinations,
           progress: 100
         }).catch(() => {
-          // Popup 可能已關閉，忽略錯誤
         });
         
       } catch (error) {
         console.error('計算錯誤:', error);
         
-        // 發送錯誤消息
         chrome.runtime.sendMessage({
           type: 'calculation_error',
           error: error.message
@@ -190,9 +188,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     }, 10);
     
-    // 立即回應表示開始處理
     sendResponse({ success: true, message: '開始計算' });
-    return true; // 保持消息通道開放
+    return true;
   }
 });
 
