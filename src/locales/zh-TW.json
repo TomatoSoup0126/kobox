@@ -2,6 +2,10 @@
   "app": {
     "title": "KoBox"
   },
+  "tabs": {
+    "books": "書籍清單",
+    "results": "推薦組合"
+  },
   "control": {
     "step1": "匯入資料",
     "step3": "搜尋設定",
@@ -20,7 +24,11 @@
     "noBooks": "尚未匯入書籍",
     "deleteBook": "刪除此書籍",
     "pin": "釘選此書籍（必定出現在組合中）",
-    "unpin": "取消釘選"
+    "unpin": "取消釘選",
+    "pinned": "本已釘選",
+    "unpinAll": "移除釘選",
+    "unselectAll": "取消勾選",
+    "selectAll": "全部選取"
   },
   "results": {
     "title": "推薦組合",

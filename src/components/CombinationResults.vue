@@ -1,73 +1,78 @@
 <template>
-  <div class="combination-results-container column column-3">
-    <!-- 第三區：組合結果 -->
-    <div class="section">
-      <h3 class="section-title">🎯 {{ $t('results.title') }}</h3>
-      
-      <!-- 載入狀態 -->
-      <div v-if="isCalculating" class="loading-container">
-        <div class="loading-text">
-          <div class="loading-title">🔍 {{ $t('results.searching') }}</div>
-          <div class="loading-percentage">
-            {{ calculationProgress }}%
-          </div>
-        </div>
-        
-        <!-- 進度條 -->
-        <div class="progress-bar-container">
-          <div class="progress-bar">
-            <div 
-              class="progress-fill" 
-              :style="{ width: `${calculationProgress}%` }"
-            ></div>
-          </div>
+  <div class="combination-results-container">
+    <!-- 載入狀態 -->
+    <div v-if="isCalculating" class="loading-container">
+      <div class="loading-text">
+        <div class="loading-title">🔍 {{ $t('results.searching') }}</div>
+        <div class="loading-percentage">
+          {{ calculationProgress }}%
         </div>
       </div>
       
-      <!-- 組合結果 -->
-      <div v-else-if="combinations.length > 0" class="combinations-list">
-        <div 
-          v-for="(combo, index) in combinations" 
-          :key="index"
-          class="combination-item fade-in"
-          :style="{ animationDelay: `${index * 0.1}s` }"
-        >
-          <div class="combo-header">
-            <span class="combo-title">{{ $t('results.combination') }} {{ index + 1 }}</span>
-            <span class="combo-total">$ {{ combo.total }}</span>
-          </div>
-          <div class="combo-books">
-            <div 
-              v-for="book in combo.books" 
-              :key="book.id"
-              class="combo-book"
-            >
-              {{ book.title }} - $ {{ book.price }}
-            </div>
+      <!-- 進度條 -->
+      <div class="progress-bar-container">
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            :style="{ width: `${calculationProgress}%` }"
+          ></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 組合結果 -->
+    <div 
+      v-else-if="combinations.length > 0" 
+      ref="listRef"
+      class="combinations-list"
+      @scroll="handleScroll"
+    >
+      <div 
+        v-for="(combo, index) in combinations" 
+        :key="index"
+        class="combination-item"
+      >
+        <div class="combo-header">
+          <span class="combo-title">{{ $t('results.combination') }} {{ index + 1 }}</span>
+          <span class="combo-total">$ {{ combo.total }}</span>
+        </div>
+        <div class="combo-books">
+          <div 
+            v-for="book in combo.books" 
+            :key="book.id"
+            class="combo-book"
+            :class="{ 'combo-book-pinned': book.pinned }"
+          >
+            <span v-if="book.pinned" class="pin-icon">📌</span>
+            <span class="combo-book-title" :title="book.title">{{ book.title }}</span>
+            <span class="combo-book-price">$ {{ book.price }}</span>
           </div>
         </div>
       </div>
-      
-      <!-- 無結果 -->
-      <div v-else-if="hasSearched && combinations.length === 0" class="no-results">
-        😕 {{ $t('results.noResults') }}
-      </div>
-      
-      <!-- 初始狀態 -->
-      <div v-else class="empty-state">
-        {{ $t('results.setPrice') }}
-        <div>「{{ $t('control.findCombinations') }}」</div>
-      </div>
+    </div>
+    
+    <!-- 無結果 -->
+    <div v-else-if="hasSearched && combinations.length === 0" class="no-results">
+      😕 {{ $t('results.noResults') }}
+    </div>
+    
+    <!-- 初始狀態 -->
+    <div v-else class="empty-state">
+      {{ $t('results.setPrice') }}
+      <div>「{{ $t('control.findCombinations') }}」</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, watch, onMounted, nextTick } from 'vue'
+
 interface Book {
   id: number
   title: string
   price: number
   selected: boolean
+  pinned?: boolean
 }
 
 interface BookCombination {
@@ -82,7 +87,46 @@ interface Props {
   calculationProgress: number
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+const listRef = ref<HTMLElement | null>(null)
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null
+
+// 儲存滾動位置（使用 debounce 避免頻繁寫入）
+const handleScroll = (): void => {
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout)
+  }
+  scrollTimeout = setTimeout(() => {
+    if (listRef.value) {
+      chrome.storage.local.set({ 
+        koboResultsScrollTop: listRef.value.scrollTop 
+      })
+    }
+  }, 150)
+}
+
+// 恢復滾動位置
+const restoreScrollPosition = async (): Promise<void> => {
+  const result = await chrome.storage.local.get(['koboResultsScrollTop'])
+  if (result.koboResultsScrollTop && listRef.value) {
+    listRef.value.scrollTop = result.koboResultsScrollTop
+  }
+}
+
+// 當組合結果載入後恢復滾動位置
+watch(() => props.combinations, async (newCombinations) => {
+  if (newCombinations.length > 0) {
+    await nextTick()
+    restoreScrollPosition()
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  if (props.combinations.length > 0) {
+    nextTick(() => restoreScrollPosition())
+  }
+})
 </script>
 
 <style scoped>
@@ -90,27 +134,8 @@ defineProps<Props>()
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   min-height: 0;
-}
-
-.section {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e9ecef;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #212529;
+  overflow: hidden;
 }
 
 .combinations-list {
@@ -118,8 +143,9 @@ defineProps<Props>()
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-height: 0;
+  padding: 12px;
 }
 
 .combinations-list::-webkit-scrollbar {
@@ -169,39 +195,77 @@ defineProps<Props>()
   font-weight: 600;
   font-size: 14px;
   color: #198754;
+  text-align: right;
+  min-width: 60px;
+  margin-right: 8px;
 }
 
 .combo-books {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .combo-book {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #495057;
+  padding: 4px 8px;
+  border-left: 2px solid #dee2e6;
+  background: transparent;
+  border-radius: 0 4px 4px 0;
+}
+
+.combo-book-pinned {
+  background: #fff8e6;
+  border-left-color: #e67e22;
+}
+
+.pin-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.combo-book-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combo-book-price {
+  flex-shrink: 0;
+  font-weight: 500;
   color: #6c757d;
-  padding-left: 8px;
-  border-left: 2px solid #6c757d;
+  text-align: right;
+  min-width: 60px;
 }
 
 .no-results {
   text-align: center;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  padding: 40px 20px;
   font-size: 14px;
   color: #6c757d;
-  border: 1px solid #e9ecef;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
   color: #6c757d;
   font-size: 14px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 2px dashed #dee2e6;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .loading-container {
@@ -209,10 +273,8 @@ defineProps<Props>()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 30px 20px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  border: 1px solid #e9ecef;
+  padding: 40px 20px;
+  flex: 1;
 }
 
 
@@ -314,22 +376,6 @@ defineProps<Props>()
   }
   50% {
     transform: translateX(100%);
-  }
-}
-
-
-.fade-in {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 </style>

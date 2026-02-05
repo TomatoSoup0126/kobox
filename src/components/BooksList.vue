@@ -1,63 +1,84 @@
 <template>
-  <div class="books-list-container column column-2">
-    <!-- 第二區：書籍清單 -->
-    <div class="section">
-      <div class="header-row">
-        <div class="section-title-container">
-          <h3 class="section-title">📚 {{ $t('books.title') }}</h3>
-          <div v-if="books.length > 0" class="book-counts">
-            ({{ selectedCount }} / {{ books.length }})
-            <span v-if="pinnedCount > 0" class="pinned-count">
-              📌 {{ pinnedCount }}
-            </span>
-          </div>
-        </div>
+  <div class="books-list-container">
+    <!-- 工具列 -->
+    <div class="toolbar" v-if="books.length > 0">
+      <div class="toolbar-info">
+        <span v-if="pinnedCount > 0" class="pinned-count">
+          📌 {{ pinnedCount }} {{ $t('books.pinned') }}
+        </span>
+      </div>
+      <div class="toolbar-actions">
         <button 
-          v-if="books.length > 0"
+          v-if="pinnedCount > 0"
+          @click="handleUnpinAll"
+          class="toolbar-btn"
+          :title="$t('books.unpinAll')"
+        >
+          📌 {{ $t('books.unpinAll') }}
+        </button>
+        <button 
+          v-if="selectedCount === books.length"
+          @click="handleUnselectAll"
+          class="toolbar-btn select-toggle-btn"
+          :title="$t('books.unselectAll')"
+        >
+          ☐ {{ $t('books.unselectAll') }}
+        </button>
+        <button 
+          v-else
+          @click="handleSelectAll"
+          class="toolbar-btn select-toggle-btn"
+          :title="$t('books.selectAll')"
+        >
+          ☑ {{ $t('books.selectAll') }}
+        </button>
+        <button 
           @click="handleClearAllData"
           class="clear-btn"
           :title="$t('books.clearAll')"
         >
-          ↻
+          ↻ {{ $t('books.clearAll') }}
         </button>
       </div>
-      <div v-if="books.length > 0" class="books-list">
-        <div 
-          v-for="book in books" 
-          :key="book.id" 
-          class="book-item"
-          :class="{ 'book-item-pinned': book.pinned }"
+    </div>
+
+    <!-- 書籍列表 -->
+    <div v-if="books.length > 0" class="books-list">
+      <div 
+        v-for="book in books" 
+        :key="book.id" 
+        class="book-item"
+        :class="{ 'book-item-pinned': book.pinned }"
+      >
+        <button
+          @click="toggleBookPinned(book)"
+          class="pin-btn"
+          :class="{ 'pin-btn-active': book.pinned }"
+          :title="book.pinned ? $t('books.unpin') : $t('books.pin')"
         >
-          <button
-            @click="toggleBookPinned(book)"
-            class="pin-btn"
-            :class="{ 'pin-btn-active': book.pinned }"
-            :title="book.pinned ? $t('books.unpin') : $t('books.pin')"
-          >
-            📌
-          </button>
-          <input 
-            type="checkbox" 
-            v-model="book.selected"
-            @change="updateBookSelection(book)"
-            class="book-checkbox"
-          >
-          <div class="book-info">
-            <div class="book-title">{{ book.title }}</div>
-            <div class="book-price">${{ book.price }}</div>
-          </div>
-          <button 
-            @click="handleDeleteBook(book.id)"
-            class="delete-btn"
-            :title="$t('books.deleteBook')"
-          >
-            ×
-          </button>
+          📌
+        </button>
+        <input 
+          type="checkbox" 
+          v-model="book.selected"
+          @change="updateBookSelection(book)"
+          class="book-checkbox"
+        >
+        <div class="book-info">
+          <div class="book-title" :title="book.title">{{ book.title }}</div>
         </div>
+        <div class="book-price">${{ book.price }}</div>
+        <button 
+          @click="handleDeleteBook(book.id)"
+          class="delete-btn"
+          :title="$t('books.deleteBook')"
+        >
+          ×
+        </button>
       </div>
-      <div v-else class="empty-state">
-        {{ $t('books.noBooks') }}
-      </div>
+    </div>
+    <div v-else class="empty-state">
+      {{ $t('books.noBooks') }}
     </div>
   </div>
 </template>
@@ -82,6 +103,9 @@ interface Emits {
   (e: 'update-book-selection', book: Book): void
   (e: 'update-book-pinned', book: Book): void
   (e: 'clear-all-data'): void
+  (e: 'unpin-all'): void
+  (e: 'unselect-all'): void
+  (e: 'select-all'): void
 }
 
 const props = defineProps<Props>()
@@ -112,6 +136,18 @@ const handleClearAllData = (): void => {
     emit('clear-all-data')
   }
 }
+
+const handleUnpinAll = (): void => {
+  emit('unpin-all')
+}
+
+const handleUnselectAll = (): void => {
+  emit('unselect-all')
+}
+
+const handleSelectAll = (): void => {
+  emit('select-all')
+}
 </script>
 
 <style scoped>
@@ -119,68 +155,37 @@ const handleClearAllData = (): void => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   min-height: 0;
+  overflow: hidden;
 }
 
-.section {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e9ecef;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
-.header-row {
+.toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.toolbar-info {
+  display: flex;
+  align-items: center;
   gap: 12px;
-}
-
-.section-title-container {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #212529;
-  flex: 1;
-}
-
-.book-counts {
-  font-size: 14px;
-  color: #6c757d;
-  font-weight: 500;
-  margin-left: auto;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .pinned-count {
   color: #e67e22;
   font-weight: 600;
+  font-size: 13px;
 }
 
 .books-list {
   flex: 1;
   overflow-y: auto;
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 8px;
+  padding: 8px 12px;
   min-height: 0;
-  border: 1px solid #e9ecef;
 }
 
 .books-list::-webkit-scrollbar {
@@ -204,18 +209,20 @@ const handleClearAllData = (): void => {
 .book-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px;
-  border-bottom: 1px solid #e9ecef;
-  transition: background-color 0.15s ease-in-out;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #f8f9fa;
+  transition: all 0.15s ease-in-out;
 }
 
 .book-item:hover {
-  background-color: #ffffff;
+  background-color: #e9ecef;
 }
 
 .book-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .book-item-pinned {
@@ -229,18 +236,24 @@ const handleClearAllData = (): void => {
 
 .book-info {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .book-title {
   font-size: 14px;
   font-weight: 500;
-  margin-bottom: 2px;
   color: #212529;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .book-price {
-  font-size: 12px;
-  color: #6c757d;
+  font-size: 14px;
+  font-weight: 600;
+  color: #495057;
+  flex-shrink: 0;
 }
 
 .pin-btn {
@@ -300,31 +313,59 @@ const handleClearAllData = (): void => {
 
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
   color: #6c757d;
   font-size: 14px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 2px dashed #dee2e6;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  background: none;
+  border: 1px solid #6c757d;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  background: #6c757d;
+  color: white;
+}
+
+.select-toggle-btn {
+  min-width: 80px;
+  text-align: center;
+  justify-content: center;
 }
 
 .clear-btn {
   background: none;
-  border: none;
+  border: 1px solid #dc3545;
   color: #dc3545;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 4px;
-  font-size: 16px;
+  font-size: 12px;
   transition: all 0.2s;
-  opacity: 0.7;
   flex-shrink: 0;
-  line-height: 1;
 }
 
 .clear-btn:hover {
-  background: rgba(220, 53, 69, 0.2);
-  opacity: 1;
-  transform: scale(1.1);
+  background: #dc3545;
+  color: white;
 }
 </style>

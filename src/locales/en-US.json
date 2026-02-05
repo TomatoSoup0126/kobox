@@ -3,6 +3,10 @@
     "title": "KoBox",
     "subtitle": "Find Optimal Checkout Combinations"
   },
+  "tabs": {
+    "books": "Books",
+    "results": "Combinations"
+  },
   "control": {
     "step1": "Import Data",
     "step3": "Search Settings",
@@ -21,7 +25,11 @@
     "noBooks": "No books imported yet",
     "deleteBook": "Delete this book",
     "pin": "Pin this book (always included in combinations)",
-    "unpin": "Unpin this book"
+    "unpin": "Unpin this book",
+    "pinned": "pinned",
+    "unpinAll": "Unpin All",
+    "unselectAll": "Unselect All",
+    "selectAll": "Select All"
   },
   "results": {
     "title": "Recommended Combinations",

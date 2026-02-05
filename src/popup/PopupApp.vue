@@ -3,7 +3,7 @@
     <Header />
 
     <main class="main-content">
-      <!-- 第一區：說明、匯入、價格設定 -->
+      <!-- 左側：控制面板 -->
       <ControlPanel
         :is-on-wishlist="isOnWishlist"
         :books="books"
@@ -11,33 +11,61 @@
         :is-loading="isLoading"
         :is-calculating="isCalculating"
         @import-books="importBooks"
-        @find-combinations="findCombinations"
+        @find-combinations="handleFindCombinations"
         @update-target-price="updateTargetPrice"
-
       />
 
-      <!-- 第二區：書籍清單 -->
-      <BooksList
-        :books="books"
-        @delete-book="deleteBook"
-        @update-book-selection="updateBookSelection"
-        @update-book-pinned="updateBookPinned"
-        @clear-all-data="clearAllData"
-      />
+      <!-- 右側：頁籤區域 -->
+      <div class="tab-container">
+        <!-- 頁籤標題 -->
+        <div class="tab-header">
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'books' }"
+            @click="switchTab('books')"
+          >
+            📚 {{ $t('tabs.books') }}
+            <span v-if="books.length > 0" class="tab-badge">{{ selectedCount }}/{{ books.length }}</span>
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'results' }"
+            @click="switchTab('results')"
+          >
+            🎯 {{ $t('tabs.results') }}
+            <span v-if="combinations.length > 0" class="tab-badge tab-badge-success">{{ combinations.length }}</span>
+          </button>
+        </div>
 
-      <!-- 第三區：組合結果 -->
-      <CombinationResults
-        :combinations="combinations"
-        :has-searched="hasSearched"
-        :is-calculating="isCalculating"
-        :calculation-progress="calculationProgress"
-      />
+        <!-- 頁籤內容 -->
+        <div class="tab-content">
+          <BooksList
+            v-show="activeTab === 'books'"
+            :books="books"
+            @delete-book="deleteBook"
+            @update-book-selection="updateBookSelection"
+            @update-book-pinned="updateBookPinned"
+            @clear-all-data="clearAllData"
+            @unpin-all="unpinAllBooks"
+            @unselect-all="unselectAllBooks"
+            @select-all="selectAllBooks"
+          />
+
+          <CombinationResults
+            v-show="activeTab === 'results'"
+            :combinations="combinations"
+            :has-searched="hasSearched"
+            :is-calculating="isCalculating"
+            :calculation-progress="calculationProgress"
+          />
+        </div>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Header from '../components/Header.vue'
 import ControlPanel from '../components/ControlPanel.vue'
@@ -80,6 +108,11 @@ const isLoading: Ref<boolean> = ref(false)
 const isCalculating: Ref<boolean> = ref(false)
 const hasSearched: Ref<boolean> = ref(false)
 const calculationProgress: Ref<number> = ref(0)
+const activeTab: Ref<'books' | 'results'> = ref('books')
+
+const selectedCount = computed(() => {
+  return books.value.filter(book => book.selected).length
+})
 
 const checkCurrentPage = async (): Promise<void> => {
   try {
@@ -201,13 +234,29 @@ const updateBookPinned = async (updatedBook: Book): Promise<void> => {
   }
 }
 
-const findCombinations = (): void => {
+const switchTab = async (tab: 'books' | 'results'): Promise<void> => {
+  activeTab.value = tab
+  await chrome.storage.local.set({ koboActiveTab: tab })
+}
+
+const handleFindCombinations = (): void => {
+  // 先設定計算中狀態，避免切換分頁時閃爍
+  isCalculating.value = true
+  // 點擊找出組合後自動切換到組合結果頁籤
+  switchTab('results')
+  findCombinations()
+}
+
+const findCombinations = async (): Promise<void> => {
   if (!targetPrice.value) return
   
   isCalculating.value = true
   hasSearched.value = true
   combinations.value = []
   calculationProgress.value = 0
+  
+  // 重新計算時清除滾動位置
+  await chrome.storage.local.remove(['koboResultsScrollTop'])
 
   // 釘選的書籍一定要出現在組合中，不論是否被選取
   const pinnedBooks: Book[] = books.value.filter(book => book.pinned)
@@ -322,8 +371,14 @@ const loadBooksFromStorage = async (): Promise<void> => {
       'koboTargetPrice', 
       'koboCombinations', 
       'koboHasSearched',
-      'koboLastCalculated'
+      'koboLastCalculated',
+      'koboActiveTab'
     ])
+    
+    // 載入上次使用的分頁
+    if (result.koboActiveTab && (result.koboActiveTab === 'books' || result.koboActiveTab === 'results')) {
+      activeTab.value = result.koboActiveTab
+    }
     
     if (result.koboBooks) {
       let loadedBooks = []
@@ -438,13 +493,49 @@ const clearAllData = async (): Promise<void> => {
       'koboTargetPrice', 
       'koboCombinations', 
       'koboHasSearched',
-      'koboLastCalculated'
+      'koboLastCalculated',
+      'koboActiveTab',
+      'koboResultsScrollTop'
     ])
     books.value = []
     targetPrice.value = null
     combinations.value = []
     hasSearched.value = false
+    activeTab.value = 'books'
   } catch (error) {
+  }
+}
+
+const unpinAllBooks = async (): Promise<void> => {
+  books.value.forEach(book => {
+    book.pinned = false
+  })
+  await clearStaleResults()
+  await saveBooksToStorage()
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
+  }
+}
+
+const unselectAllBooks = async (): Promise<void> => {
+  books.value.forEach(book => {
+    book.selected = false
+  })
+  await clearStaleResults()
+  await saveBooksToStorage()
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
+  }
+}
+
+const selectAllBooks = async (): Promise<void> => {
+  books.value.forEach(book => {
+    book.selected = true
+  })
+  await clearStaleResults()
+  await saveBooksToStorage()
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
   }
 }
 
@@ -510,18 +601,92 @@ onUnmounted(() => {
   padding: 16px;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   color: #212529;
-  min-height: 100vh;
+  height: 600px;
   width: 800px;
   box-sizing: border-box;
+  overflow: hidden;
 }
-
-
 
 .main-content {
   display: flex;
-  gap: 20px;
-  height: calc(100vh - 120px);
+  gap: 16px;
+  height: calc(600px - 80px);
 }
 
+.tab-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
+  overflow: hidden;
+}
 
+.tab-header {
+  display: flex;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6c757d;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn:hover {
+  color: #495057;
+  background: #e9ecef;
+}
+
+.tab-btn.active {
+  color: #bf0000;
+  background: #ffffff;
+  border-bottom-color: #bf0000;
+}
+
+.tab-badge {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #e9ecef;
+  color: #6c757d;
+}
+
+.tab-btn.active .tab-badge {
+  background: #ffeaea;
+  color: #bf0000;
+}
+
+.tab-badge-success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.tab-btn.active .tab-badge-success {
+  background: #c3e6cb;
+  color: #155724;
+}
+
+.tab-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 </style>
