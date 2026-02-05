@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KoBox",
-  "version": "0.2",
+  "version": "0.3",
   "description": "Find Optimal Checkout Combinations",
   "permissions": [
     "activeTab",
