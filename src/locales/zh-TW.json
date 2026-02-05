@@ -18,7 +18,9 @@
     "title": "書籍清單",
     "clearAll": "清除所有資料",
     "noBooks": "尚未匯入書籍",
-    "deleteBook": "刪除此書籍"
+    "deleteBook": "刪除此書籍",
+    "pin": "釘選此書籍（必定出現在組合中）",
+    "unpin": "取消釘選"
   },
   "results": {
     "title": "推薦組合",

@@ -7,6 +7,9 @@
           <h3 class="section-title">📚 {{ $t('books.title') }}</h3>
           <div v-if="books.length > 0" class="book-counts">
             ({{ selectedCount }} / {{ books.length }})
+            <span v-if="pinnedCount > 0" class="pinned-count">
+              📌 {{ pinnedCount }}
+            </span>
           </div>
         </div>
         <button 
@@ -19,7 +22,20 @@
         </button>
       </div>
       <div v-if="books.length > 0" class="books-list">
-        <div v-for="book in books" :key="book.id" class="book-item">
+        <div 
+          v-for="book in books" 
+          :key="book.id" 
+          class="book-item"
+          :class="{ 'book-item-pinned': book.pinned }"
+        >
+          <button
+            @click="toggleBookPinned(book)"
+            class="pin-btn"
+            :class="{ 'pin-btn-active': book.pinned }"
+            :title="book.pinned ? $t('books.unpin') : $t('books.pin')"
+          >
+            📌
+          </button>
           <input 
             type="checkbox" 
             v-model="book.selected"
@@ -54,6 +70,7 @@ interface Book {
   title: string
   price: number
   selected: boolean
+  pinned: boolean
 }
 
 interface Props {
@@ -63,6 +80,7 @@ interface Props {
 interface Emits {
   (e: 'delete-book', bookId: number): void
   (e: 'update-book-selection', book: Book): void
+  (e: 'update-book-pinned', book: Book): void
   (e: 'clear-all-data'): void
 }
 
@@ -73,12 +91,20 @@ const selectedCount = computed(() => {
   return props.books.filter(book => book.selected).length
 })
 
+const pinnedCount = computed(() => {
+  return props.books.filter(book => book.pinned).length
+})
+
 const handleDeleteBook = (bookId: number): void => {
   emit('delete-book', bookId)
 }
 
 const updateBookSelection = (book: Book): void => {
   emit('update-book-selection', book)
+}
+
+const toggleBookPinned = (book: Book): void => {
+  emit('update-book-pinned', { ...book, pinned: !book.pinned })
 }
 
 const handleClearAllData = (): void => {
@@ -137,6 +163,14 @@ const handleClearAllData = (): void => {
   font-weight: 500;
   margin-left: auto;
   margin-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pinned-count {
+  color: #e67e22;
+  font-weight: 600;
 }
 
 .books-list {
@@ -184,6 +218,15 @@ const handleClearAllData = (): void => {
   border-bottom: none;
 }
 
+.book-item-pinned {
+  background-color: #fff8e6;
+  border-left: 3px solid #e67e22;
+}
+
+.book-item-pinned:hover {
+  background-color: #fff3d1;
+}
+
 .book-info {
   flex: 1;
 }
@@ -198,6 +241,35 @@ const handleClearAllData = (): void => {
 .book-price {
   font-size: 12px;
   color: #6c757d;
+}
+
+.pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: all 0.2s;
+  opacity: 0.3;
+  flex-shrink: 0;
+  line-height: 1;
+  filter: grayscale(100%);
+}
+
+.pin-btn:hover {
+  opacity: 0.7;
+  transform: scale(1.1);
+  filter: grayscale(0%);
+}
+
+.pin-btn-active {
+  opacity: 1;
+  filter: grayscale(0%);
+}
+
+.pin-btn-active:hover {
+  opacity: 0.8;
 }
 
 .book-checkbox {

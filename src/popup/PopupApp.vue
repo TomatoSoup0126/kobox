@@ -21,6 +21,7 @@
         :books="books"
         @delete-book="deleteBook"
         @update-book-selection="updateBookSelection"
+        @update-book-pinned="updateBookPinned"
         @clear-all-data="clearAllData"
       />
 
@@ -49,6 +50,7 @@ interface Book {
   title: string
   price: number
   selected: boolean
+  pinned: boolean
 }
 
 interface BookCombination {
@@ -117,7 +119,8 @@ const importBooks = async (): Promise<void> => {
           productId: book.productId,
           title: book.title,
           price: book.price,
-          selected: true
+          selected: true,
+          pinned: false
         }
 
         if (existingIndex !== -1) {
@@ -184,6 +187,20 @@ const updateBookSelection = async (updatedBook: Book): Promise<void> => {
   }
 }
 
+const updateBookPinned = async (updatedBook: Book): Promise<void> => {
+  const book = books.value.find(b => b.id === updatedBook.id)
+  if (book) {
+    book.pinned = updatedBook.pinned
+    
+    await clearStaleResults()
+    
+    await saveBooksToStorage()
+  }
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
+  }
+}
+
 const findCombinations = (): void => {
   if (!targetPrice.value) return
   
@@ -192,22 +209,36 @@ const findCombinations = (): void => {
   combinations.value = []
   calculationProgress.value = 0
 
-  const selectedBooks: Book[] = books.value.filter(book => book.selected)
+  // 釘選的書籍一定要出現在組合中，不論是否被選取
+  const pinnedBooks: Book[] = books.value.filter(book => book.pinned)
+  // 選取但未釘選的書籍，作為候選書籍
+  const selectedBooks: Book[] = books.value.filter(book => book.selected && !book.pinned)
   const target: number = targetPrice.value
 
   // 將響應式物件轉換為純 JavaScript 物件以避免 DataCloneError
-  const plainBooks = selectedBooks.map(book => ({
+  const plainPinnedBooks = pinnedBooks.map(book => ({
     id: book.id,
     productId: book.productId,
     title: book.title,
     price: book.price,
-    selected: book.selected
+    selected: book.selected,
+    pinned: book.pinned
+  }))
+
+  const plainSelectedBooks = selectedBooks.map(book => ({
+    id: book.id,
+    productId: book.productId,
+    title: book.title,
+    price: book.price,
+    selected: book.selected,
+    pinned: book.pinned
   }))
 
   chrome.runtime.sendMessage({
     action: 'findCombinations',
     data: {
-      books: plainBooks,
+      books: plainSelectedBooks,
+      pinnedBooks: plainPinnedBooks,
       targetPrice: target
     }
   }).then(response => {
@@ -307,7 +338,11 @@ const loadBooksFromStorage = async (): Promise<void> => {
       }
       
       if (loadedBooks.length > 0) {
-        books.value = loadedBooks
+        // 確保舊資料也有 pinned 欄位
+        books.value = loadedBooks.map((book: any) => ({
+          ...book,
+          pinned: book.pinned ?? false
+        }))
       }
     } else {
     }

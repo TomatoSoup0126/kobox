@@ -10,13 +10,28 @@ class CombinationFinder {
 
   /**
    * 使用動態規劃找到最佳的書籍組合
-   * @param {Array} books - 書籍陣列
+   * @param {Array} books - 候選書籍陣列（未釘選的）
    * @param {number} targetPrice - 目標價格
+   * @param {Array} pinnedBooks - 釘選的書籍陣列（一定要出現在組合中）
    * @returns {Array} 最佳組合陣列
    */
-  findOptimalCombinations(books, targetPrice) {
+  findOptimalCombinations(books, targetPrice, pinnedBooks = []) {
+    // 計算釘選書籍的基礎價格
+    const pinnedTotal = pinnedBooks.reduce((sum, book) => sum + book.price, 0);
+    
+    // 計算剩餘預算
+    const remainingBudget = targetPrice - pinnedTotal;
+    
+    // 如果釘選書籍已經超過目標價格，直接返回只包含釘選書籍的組合
+    if (remainingBudget <= 0 || books.length === 0) {
+      if (pinnedBooks.length === 0) return [];
+      return [{
+        books: [...pinnedBooks],
+        total: pinnedTotal
+      }];
+    }
+
     const n = books.length;
-    if (n === 0 || targetPrice <= 0) return [];
 
     // 使用 Map 來儲存每個價格對應的最佳組合
     // key: 價格, value: { books: [], total: number }
@@ -35,8 +50,8 @@ class CombinationFinder {
       for (const [currentPrice, combination] of dp.entries()) {
         const newPrice = currentPrice + book.price;
         
-        // 只考慮不超過目標價格太多的組合（允許一些彈性）
-        if (newPrice <= targetPrice * 1.5) {
+        // 只考慮不超過剩餘預算太多的組合（允許一些彈性）
+        if (newPrice <= remainingBudget * 1.5) {
           // 如果這個價格還沒有組合，或者當前組合的書籍數量更少
           if (!dp.has(newPrice) || 
               (!newEntries.has(newPrice) && combination.books.length + 1 < dp.get(newPrice).books.length)) {
@@ -72,8 +87,8 @@ class CombinationFinder {
       if (dp.size > 50000) {
         const sortedEntries = Array.from(dp.entries())
           .sort((a, b) => {
-            const diffA = Math.abs(a[0] - targetPrice);
-            const diffB = Math.abs(b[0] - targetPrice);
+            const diffA = Math.abs(a[0] - remainingBudget);
+            const diffB = Math.abs(b[0] - remainingBudget);
             return diffA - diffB;
           });
         
@@ -84,8 +99,14 @@ class CombinationFinder {
       }
     }
 
-    // 選擇最佳組合
-    return this.selectBestCombinations(dp, targetPrice);
+    // 選擇最佳組合，並將釘選書籍加入每個組合
+    const bestCombinations = this.selectBestCombinations(dp, remainingBudget);
+    
+    // 將釘選書籍加入每個組合
+    return bestCombinations.map(combination => ({
+      books: [...pinnedBooks, ...combination.books],
+      total: pinnedTotal + combination.total
+    }));
   }
 
   /**
@@ -154,17 +175,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return;
     }
 
-    const { books, targetPrice } = request.data;
+    const { books, pinnedBooks = [], targetPrice } = request.data;
     
-    if (!books || !targetPrice) {
+    if (!targetPrice) {
       sendResponse({ error: '缺少必要的參數' });
+      return;
+    }
+
+    // 如果沒有候選書籍也沒有釘選書籍，返回錯誤
+    if ((!books || books.length === 0) && pinnedBooks.length === 0) {
+      sendResponse({ error: '缺少書籍資料' });
       return;
     }
 
     isCalculating = true;
     setTimeout(async () => {
       try {
-        const combinations = finder.findOptimalCombinations(books, targetPrice);
+        const combinations = finder.findOptimalCombinations(books || [], targetPrice, pinnedBooks);
         
         // 發送完成消息
         chrome.runtime.sendMessage({

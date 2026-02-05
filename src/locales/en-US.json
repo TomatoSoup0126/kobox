@@ -19,7 +19,9 @@
     "title": "Books List",
     "clearAll": "Clear All Data",
     "noBooks": "No books imported yet",
-    "deleteBook": "Delete this book"
+    "deleteBook": "Delete this book",
+    "pin": "Pin this book (always included in combinations)",
+    "unpin": "Unpin this book"
   },
   "results": {
     "title": "Recommended Combinations",
