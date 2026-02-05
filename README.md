@@ -11,6 +11,8 @@
 - **🔄 One-Click Import** - Quickly import books from your Kobo wishlist
 - **🎯 Smart Calculation** - Automatically find optimal combinations that meet your target price
 - **💰 Price Optimization** - Precisely calculate book combinations to reach minimum checkout threshold
+- **📌 Pin Books** - Pin specific books to ensure they always appear in combinations
+- **✅ Batch Operations** - Select all, unselect all, or unpin all books with one click
 
 
 ## 🚀 Quick Start
@@ -29,13 +31,18 @@
    - Click the KoBox icon in the toolbar
    - Click "Import Books Data" button
 
-3. **Set Target Price**
+3. **Pin Must-Have Books (Optional)**
+   - Click the 📌 icon next to any book to pin it
+   - Pinned books will always be included in every combination
+
+4. **Set Target Price**
    - Enter your desired minimum checkout amount
    - Example: 1000 (means total price at least $1000)
 
-4. **Find Best Combinations**
+5. **Find Best Combinations**
    - Click "Find Combinations" button
    - Browse the recommended book combination list
+   - Pinned books are highlighted for easy identification
 
 ---
 
