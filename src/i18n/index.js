@@ -2,12 +2,18 @@ import { createI18n } from 'vue-i18n'
 import zhTW from '../locales/zh-TW.json'
 import enUS from '../locales/en-US.json'
 
+// 沒有存過偏好時依瀏覽器語言決定。先前只有分享頁做這件事，導致中文使用者
+// 看到中文分享頁卻是英文 popup。
+const detectLocale = () => {
+  const language = (typeof navigator !== 'undefined' && navigator.language) || ''
+  return language.toLowerCase().startsWith('zh') ? 'zh-TW' : 'en-US'
+}
+
 const getStoredLocale = () => {
   try {
-    const stored = localStorage.getItem('kobo-slash-locale')
-    return stored || 'en-US'
+    return localStorage.getItem('kobo-slash-locale') || detectLocale()
   } catch (error) {
-    return 'en-US'
+    return detectLocale()
   }
 }
 

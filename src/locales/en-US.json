@@ -1,35 +1,37 @@
 {
   "app": {
-    "title": "KoBox",
-    "subtitle": "Find Optimal Checkout Combinations"
+    "title": "KoBox"
   },
   "tabs": {
     "books": "Books",
     "results": "Combinations"
   },
   "control": {
-    "step1": "Import Data",
+    "step1": "Add books",
     "step3": "Search Settings",
-    "importWishlist": "Import Books Data",
+    "importWishlist": "Import wishlist books",
     "targetPrice": "Checkout price must be higher than",
     "findCombinations": "Find Combinations",
     "importing": "Importing...",
     "calculating": "Calculating...",
     "enterAmount": "e.g.: 1000",
-    "hintMessage": "💡 Please go to {link} page first, then click the button below to import books",
-    "wishlistLink": "My Wishlist"
+    "hintMessage": "This button reads the books on your {link} page — open that page first",
+    "wishlistLink": "My Wishlist",
+    "storeHint": "You can also add single books from the Kobo home, search or book pages — click the button on the bottom-right of a cover",
+    "importDisabledHint": "Open your Kobo wishlist page first"
   },
   "books": {
     "title": "Books List",
-    "clearAll": "Clear All Data",
+    "clearAll": "Clear all",
     "noBooks": "No books imported yet",
     "deleteBook": "Delete this book",
     "pin": "Pin this book (always included in combinations)",
     "unpin": "Unpin this book",
-    "pinned": "pinned",
-    "unpinAll": "Unpin All",
-    "unselectAll": "Unselect All",
-    "selectAll": "Select All"
+    "pinned": "{n} pinned",
+    "unpinAll": "Unpin",
+    "unselectAll": "Deselect",
+    "selectAll": "Select all",
+    "openInKobo": "Open on Kobo: {title}"
   },
   "results": {
     "title": "Recommended Combinations",
@@ -40,6 +42,66 @@
   },
   "messages": {
     "importFailed": "Import failed\nPlease ensure you are on the wishlist page\nor refresh the wishlist page",
-    "storageError": "Chrome storage unavailable, this may affect data saving functionality"
+    "storageError": "Chrome storage unavailable, this may affect data saving functionality",
+    "importNoticeShare": "Imported {added} books from a shared list, updated {updated}",
+    "importNoticePage": "Added {added} books from Kobo, updated {updated}",
+    "importNoticeMixed": "Added {added} books, updated {updated}",
+    "jsonImported": "Imported {added} books from JSON, updated {updated}",
+    "jsonImportFailed": "This JSON file is not a valid KoBox wishlist",
+    "deleted": "Deleted \"{title}\"",
+    "undo": "Undo",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "clearAllConfirm": "Clear all book data? This cannot be undone.",
+    "calcBusy": "A calculation is already running",
+    "calcMissingPrice": "Enter a checkout price first",
+    "calcMissingBooks": "Select at least one book first",
+    "calcFailed": "Calculation failed, please try again",
+    "close": "Close"
+  },
+  "share": {
+    "button": "Share list",
+    "title": "Share book list",
+    "selected": "Selected ({n})",
+    "all": "All ({n})",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "copyError": "Could not copy the link. Select it manually instead.",
+    "preview": "Preview",
+    "generateError": "Could not create the link. Please try again.",
+    "emptySelection": "Select at least one book to share",
+    "tooMany": "A share link can include at most {max} books. Select fewer, or export the full list as JSON.",
+    "privacyNote": "The book titles and prices are stored in the URL itself, not on a server. Only share it with people you trust.",
+    "linkLabel": "Share link",
+    "close": "Close"
+  },
+  "json": {
+    "import": "Import JSON",
+    "importTitle": "Restore a list from a previously exported JSON file",
+    "export": "Export JSON",
+    "exportTitle": "Save all books to a JSON file"
+  },
+  "sharePage": {
+    "landingTitle": "KoBox",
+    "landingSubtitle": "Find the best checkout combinations from your Kobo wishlist",
+    "install": "Install the Chrome extension",
+    "loading": "Loading list...",
+    "invalidLink": "This share link is invalid or damaged",
+    "backHome": "Back to home",
+    "sharedList": "Someone shared a book list with you",
+    "bookCount": "{n} books",
+    "selectAll": "Select all",
+    "unselectAll": "Unselect all",
+    "selectedSummary": "{n} selected · ${price}",
+    "import": "Import into KoBox",
+    "importing": "Importing...",
+    "imported": "Imported {added}, updated {updated}",
+    "importFailed": "Import failed. Refresh this page and try again.",
+    "openExtension": "Open the KoBox icon in your toolbar to see the list",
+    "needInstallHint": "After installing, refresh this page to import the selected books.",
+    "priceNote": "Prices are from the moment this list was shared. Check Kobo for current prices.",
+    "owned": "In KoBox",
+    "ownedCount": "{n} already in your KoBox",
+    "allOwned": "You already have every book on this list"
   }
 }

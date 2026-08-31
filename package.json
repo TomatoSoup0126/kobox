@@ -1,12 +1,18 @@
 {
   "name": "kobo-slash",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "幫助使用者快速將 KOBO 願望清單中的書籍找出適合結帳的組合",
   "main": "index.js",
   "scripts": {
     "dev": "vite build --mode development --watch",
+    "dev:site": "node --experimental-default-type=module scripts/dev-manifest.mjs run -- vite --config vite.share.config.js",
     "build": "vite build --mode production",
-    "preview": "vite preview"
+    "manifest:dev": "node --experimental-default-type=module scripts/dev-manifest.mjs on",
+    "manifest:clean": "node --experimental-default-type=module scripts/dev-manifest.mjs off",
+    "build:site": "vite build --config vite.share.config.js",
+    "preview": "vite preview",
+    "preview:site": "node --experimental-default-type=module scripts/dev-manifest.mjs run -- vite preview --config vite.share.config.js",
+    "test": "node --experimental-default-type=module scripts/test-share.mjs && node --experimental-default-type=module scripts/test-bridge.mjs && node --experimental-default-type=module scripts/test-price.mjs && node --experimental-default-type=module scripts/test-notice.mjs"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

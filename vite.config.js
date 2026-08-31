@@ -14,6 +14,28 @@ export default defineConfig(({ command, mode }) => ({
       escapeHtml: false
     }),
     {
+      // content script 不是 ES module，任何 import/export 都會讓它在瀏覽器裡靜默失效。
+      // rollup 只在模組被兩個以上 entry 共用時才拆 chunk，所以這裡守住這個前提。
+      name: 'assert-content-scripts-are-self-contained',
+      writeBundle(options) {
+        const outDir = options.dir || 'dist'
+        const contentScripts = ['content.js', 'share-bridge.js', 'kobo-inject.js']
+
+        for (const name of contentScripts) {
+          const file = path.join(outDir, name)
+          if (!fs.existsSync(file)) continue
+
+          const code = fs.readFileSync(file, 'utf8')
+          if (/(^|\n)\s*(import|export)[\s{*]/.test(code)) {
+            throw new Error(
+              `${name} 含有模組語法，content script 無法載入。` +
+              '請確認它 import 的模組沒有被其他 entry 共用而拆成獨立 chunk。'
+            )
+          }
+        }
+      }
+    },
+    {
       name: 'move-popup-html-and-copy-icons',
       writeBundle(options) {
         const outDir = options.dir || 'dist'
@@ -23,8 +45,7 @@ export default defineConfig(({ command, mode }) => ({
         if (fs.existsSync(htmlSource)) {
           let htmlContent = fs.readFileSync(htmlSource, 'utf8')
           
-          htmlContent = htmlContent.replace(/src="\/popup\.js"/g, 'src="./popup.js"')
-          htmlContent = htmlContent.replace(/href="\/popup\.css"/g, 'href="./popup.css"')
+          htmlContent = htmlContent.replace(/(src|href)="\/([^"]+)"/g, '$1="./$2"')
           
           fs.writeFileSync(htmlTarget, htmlContent)
           
@@ -63,6 +84,8 @@ export default defineConfig(({ command, mode }) => ({
         popup: resolve(__dirname, 'src/popup/popup.html'),
         content: resolve(__dirname, 'src/content/content.js'),
         background: resolve(__dirname, 'src/background/background.js'),
+        'share-bridge': resolve(__dirname, 'src/content/share-bridge.js'),
+        'kobo-inject': resolve(__dirname, 'src/content/kobo-inject.js'),
       },
       output: {
         entryFileNames: (chunkInfo) => {
