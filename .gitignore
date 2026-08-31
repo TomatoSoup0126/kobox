@@ -9,6 +9,7 @@ yarn.lock
 # dist/
 build/
 dist/
+dist-site/
 
 # Development files
 .vscode/

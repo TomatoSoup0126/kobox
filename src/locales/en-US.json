@@ -40,6 +40,51 @@
   },
   "messages": {
     "importFailed": "Import failed\nPlease ensure you are on the wishlist page\nor refresh the wishlist page",
-    "storageError": "Chrome storage unavailable, this may affect data saving functionality"
+    "storageError": "Chrome storage unavailable, this may affect data saving functionality",
+    "importNotice": "Imported {added} books from a shared list, updated {updated}",
+    "jsonImported": "Imported {added} books from JSON, updated {updated}",
+    "jsonImportFailed": "This JSON file is not a valid KoBox wishlist"
+  },
+  "share": {
+    "button": "Share list",
+    "title": "Share book list",
+    "selected": "Selected ({n})",
+    "all": "All ({n})",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "copyError": "Could not copy the link. Select it manually instead.",
+    "preview": "Preview",
+    "downloadJson": "Download JSON",
+    "generateError": "Could not create the link. Please try again.",
+    "emptySelection": "Select at least one book to share",
+    "tooMany": "A share link can include at most {max} books. Select fewer, or export the full list as JSON.",
+    "privacyNote": "The book titles and prices are stored in the URL itself, not on a server. Only share it with people you trust.",
+    "linkLabel": "Share link",
+    "close": "Close"
+  },
+  "json": {
+    "export": "Export JSON",
+    "import": "Import JSON",
+    "exportTitle": "Export all books as JSON"
+  },
+  "sharePage": {
+    "landingTitle": "KoBox",
+    "landingSubtitle": "Find the best checkout combinations from your Kobo wishlist",
+    "install": "Install the Chrome extension",
+    "loading": "Loading list...",
+    "invalidLink": "This share link is invalid or damaged",
+    "backHome": "Back to home",
+    "sharedList": "Someone shared a book list with you",
+    "bookCount": "{n} books",
+    "selectAll": "Select all",
+    "unselectAll": "Unselect all",
+    "selectedSummary": "{n} selected · ${price}",
+    "import": "Import into KoBox",
+    "importing": "Importing...",
+    "imported": "Imported {added}, updated {updated}",
+    "importFailed": "Import failed. Refresh this page and try again.",
+    "openExtension": "Open the KoBox icon in your toolbar to see the list",
+    "needInstallHint": "After installing, refresh this page to import the selected books.",
+    "priceNote": "Prices are from the moment this list was shared. Check Kobo for current prices."
   }
 }

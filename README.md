@@ -13,7 +13,8 @@
 - **💰 Price Optimization** - Precisely calculate book combinations to reach minimum checkout threshold
 - **📌 Pin Books** - Pin specific books to ensure they always appear in combinations
 - **✅ Batch Operations** - Select all, unselect all, or unpin all books with one click
-
+- **🔗 Share List** - Copy a link (up to 10 books) so others can view it and import selected titles
+- **💾 JSON Backup** - Export or import the full book list as a JSON file
 
 ## 🚀 Quick Start
 
@@ -44,10 +45,26 @@
    - Browse the recommended book combination list
    - Pinned books are highlighted for easy identification
 
+6. **Share a List (Optional)**
+   - Click "Share list" and copy the link (max 10 books)
+   - Recipients open [kobox.netlify.app](https://kobox.netlify.app), tick books, and import them into KoBox
+   - People without the extension are directed to the Chrome Web Store
+   - Book data lives in the URL hash and is not stored on a server
+
+7. **Export / Import JSON (Optional)**
+   - Use **Export JSON** to back up the full list (no 10-book limit)
+   - Use **Import JSON** on another browser or device; existing books are matched by `productId`
+
 ---
 
-**Note**: This extension is for personal use only. Please comply with Kobo website terms of service. All data is processed locally and no personal information is collected.
+**Note**: This extension is for personal use only. Please comply with Kobo website terms of service. Wishlist data stays on your device. A share link encodes the selected books in the URL itself; nothing is uploaded to a KoBox server.
 
+### Deploy the share page (Netlify)
+
+1. Import this GitHub repository in [Netlify](https://www.netlify.com/)
+2. The included `netlify.toml` already sets `npm run build:site` and the `dist-site` publish directory
+3. Set the site name to `kobox` so the public URL is `https://kobox.netlify.app` (or update `src/shared/config.js` if you use another name)
+4. After the first deploy, share links copied from the extension will open that site
 
 
 <a href="https://www.buymeacoffee.com/tomatosoup" target="_blank">

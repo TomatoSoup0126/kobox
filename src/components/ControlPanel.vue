@@ -20,6 +20,14 @@
         <span v-if="isLoading">{{ $t('control.importing') }}</span>
         <span v-else>{{ $t('control.importWishlist') }}</span>
       </button>
+      <button
+        v-if="books.length > 0"
+        type="button"
+        class="share-btn"
+        @click="handleShareBooks"
+      >
+        🔗 {{ $t('share.button') }}
+      </button>
     </div>
 
     <div v-if="books.length > 0" class="section">
@@ -71,6 +79,7 @@ interface Emits {
   (e: 'import-books'): void
   (e: 'find-combinations'): void
   (e: 'update-target-price', value: number | null): void
+  (e: 'share-books'): void
 }
 
 const props = defineProps<Props>()
@@ -84,6 +93,10 @@ watch(() => props.targetPrice, (newValue) => {
 
 const handleImportBooks = (): void => {
   emit('import-books')
+}
+
+const handleShareBooks = (): void => {
+  emit('share-books')
 }
 
 const handleFindCombinations = (): void => {
@@ -149,7 +162,7 @@ const updateTargetPrice = (): void => {
   color: #0f5132;
 }
 
-.import-btn, .calculate-btn {
+.import-btn, .calculate-btn, .share-btn {
   width: 100%;
   padding: 12px;
   border: none;
@@ -162,9 +175,21 @@ const updateTargetPrice = (): void => {
   transition: background 0.2s;
 }
 
+.share-btn {
+  margin-top: 8px;
+  background: #fff;
+  color: #bf0000;
+  border: 1px solid #bf0000;
+}
+
 .import-btn:hover:not(:disabled), 
 .calculate-btn:hover:not(:disabled) {
   background: #5a6268;
+}
+
+.share-btn:hover:not(:disabled) {
+  background: #bf0000;
+  color: #fff;
 }
 
 .import-btn:disabled, 

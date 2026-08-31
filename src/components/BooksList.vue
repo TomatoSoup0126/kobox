@@ -1,7 +1,7 @@
 <template>
   <div class="books-list-container">
     <!-- 工具列 -->
-    <div class="toolbar" v-if="books.length > 0">
+    <div class="toolbar">
       <div class="toolbar-info">
         <span v-if="pinnedCount > 0" class="pinned-count">
           📌 {{ pinnedCount }} {{ $t('books.pinned') }}
@@ -17,7 +17,7 @@
           📌 {{ $t('books.unpinAll') }}
         </button>
         <button 
-          v-if="selectedCount === books.length"
+          v-if="books.length > 0 && selectedCount === books.length"
           @click="handleUnselectAll"
           class="toolbar-btn select-toggle-btn"
           :title="$t('books.unselectAll')"
@@ -25,20 +25,43 @@
           ☐ {{ $t('books.unselectAll') }}
         </button>
         <button 
-          v-else
+          v-else-if="books.length > 0"
           @click="handleSelectAll"
           class="toolbar-btn select-toggle-btn"
           :title="$t('books.selectAll')"
         >
           ☑ {{ $t('books.selectAll') }}
         </button>
+        <button
+          v-if="books.length > 0"
+          @click="handleExportJson"
+          class="toolbar-btn"
+          :title="$t('json.exportTitle')"
+        >
+          {{ $t('json.export') }}
+        </button>
         <button 
+          @click="handleImportJsonClick"
+          class="toolbar-btn"
+          :title="$t('json.import')"
+        >
+          {{ $t('json.import') }}
+        </button>
+        <button
+          v-if="books.length > 0"
           @click="handleClearAllData"
           class="clear-btn"
           :title="$t('books.clearAll')"
         >
           ↻ {{ $t('books.clearAll') }}
         </button>
+        <input
+          ref="jsonFileInput"
+          type="file"
+          accept="application/json,.json"
+          class="hidden-file-input"
+          @change="handleJsonFileChange"
+        >
       </div>
     </div>
 
@@ -84,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 interface Book {
   id: number
@@ -106,10 +129,13 @@ interface Emits {
   (e: 'unpin-all'): void
   (e: 'unselect-all'): void
   (e: 'select-all'): void
+  (e: 'export-json'): void
+  (e: 'import-json', file: File): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const jsonFileInput = ref<HTMLInputElement | null>(null)
 
 const selectedCount = computed(() => {
   return props.books.filter(book => book.selected).length
@@ -147,6 +173,23 @@ const handleUnselectAll = (): void => {
 
 const handleSelectAll = (): void => {
   emit('select-all')
+}
+
+const handleExportJson = (): void => {
+  emit('export-json')
+}
+
+const handleImportJsonClick = (): void => {
+  jsonFileInput.value?.click()
+}
+
+const handleJsonFileChange = (event: Event): void => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file) {
+    emit('import-json', file)
+  }
+  input.value = ''
 }
 </script>
 
@@ -326,6 +369,8 @@ const handleSelectAll = (): void => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .toolbar-btn {
@@ -367,5 +412,9 @@ const handleSelectAll = (): void => {
 .clear-btn:hover {
   background: #dc3545;
   color: white;
+}
+
+.hidden-file-input {
+  display: none;
 }
 </style>

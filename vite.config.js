@@ -23,8 +23,7 @@ export default defineConfig(({ command, mode }) => ({
         if (fs.existsSync(htmlSource)) {
           let htmlContent = fs.readFileSync(htmlSource, 'utf8')
           
-          htmlContent = htmlContent.replace(/src="\/popup\.js"/g, 'src="./popup.js"')
-          htmlContent = htmlContent.replace(/href="\/popup\.css"/g, 'href="./popup.css"')
+          htmlContent = htmlContent.replace(/(src|href)="\/([^"]+)"/g, '$1="./$2"')
           
           fs.writeFileSync(htmlTarget, htmlContent)
           
@@ -63,6 +62,7 @@ export default defineConfig(({ command, mode }) => ({
         popup: resolve(__dirname, 'src/popup/popup.html'),
         content: resolve(__dirname, 'src/content/content.js'),
         background: resolve(__dirname, 'src/background/background.js'),
+        'share-bridge': resolve(__dirname, 'src/content/share-bridge.js'),
       },
       output: {
         entryFileNames: (chunkInfo) => {

@@ -3,6 +3,59 @@
  * 處理書籍組合計算邏輯
  */
 
+import { mergeImportedBooks, validateBooks } from '../shared/sharePayload.js'
+import { SHARE_PAGE_ORIGIN } from '../shared/config.js'
+
+function isTrustedShareSender (sender) {
+  const url = sender?.url || sender?.origin || ''
+  try {
+    const parsed = new URL(url)
+    if (parsed.origin === SHARE_PAGE_ORIGIN) return true
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+      return ['5174', '4173', '8888'].includes(parsed.port)
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+
+async function handleImportSharedBooks (rawBooks) {
+  const { ok, books, error } = validateBooks(rawBooks)
+  if (!ok) {
+    return { ok: false, error }
+  }
+
+  const result = await chrome.storage.local.get(['koboBooks'])
+  let existing = []
+  if (Array.isArray(result.koboBooks)) {
+    existing = result.koboBooks
+  } else if (result.koboBooks && typeof result.koboBooks === 'object') {
+    existing = Object.values(result.koboBooks)
+  }
+
+  const merged = mergeImportedBooks(existing, books)
+  await chrome.storage.local.set({
+    koboBooks: JSON.parse(JSON.stringify(merged.books)),
+    koboImportNotice: {
+      added: merged.added,
+      updated: merged.updated,
+      at: Date.now()
+    }
+  })
+
+  const badge = merged.added > 0 ? String(Math.min(merged.added, 99)) : ''
+  await chrome.action.setBadgeText({ text: badge })
+  await chrome.action.setBadgeBackgroundColor({ color: '#bf0000' })
+
+  return {
+    ok: true,
+    added: merged.added,
+    updated: merged.updated,
+    total: merged.books.length
+  }
+}
+
 class CombinationFinder {
   constructor() {
     this.maxResults = 10;
@@ -169,6 +222,20 @@ const finder = new CombinationFinder();
 
 // 監聽來自 popup 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'importSharedBooks') {
+    if (!isTrustedShareSender(sender)) {
+      sendResponse({ ok: false, error: 'untrusted_sender' })
+      return
+    }
+
+    handleImportSharedBooks(request.books)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({ ok: false, error: error.message })
+      })
+    return true
+  }
+
   if (request.action === 'findCombinations') {
     if (isCalculating) {
       sendResponse({ error: '計算正在進行中，請稍候' });

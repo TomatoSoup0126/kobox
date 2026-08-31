@@ -39,6 +39,51 @@
   },
   "messages": {
     "importFailed": "匯入失敗\n請確認位於願望清單頁面\n或重整願望清單頁面",
-    "storageError": "Chrome storage 不可用，這可能影響資料保存功能"
+    "storageError": "Chrome storage 不可用，這可能影響資料保存功能",
+    "importNotice": "已從分享連結匯入 {added} 本，更新 {updated} 本",
+    "jsonImported": "已從 JSON 匯入 {added} 本，更新 {updated} 本",
+    "jsonImportFailed": "JSON 格式不正確，無法匯入"
+  },
+  "share": {
+    "button": "分享書單",
+    "title": "分享書單",
+    "selected": "已勾選的 {n} 本",
+    "all": "全部 {n} 本",
+    "copy": "複製連結",
+    "copied": "已複製",
+    "copyError": "無法複製連結，請手動選取網址",
+    "preview": "預覽",
+    "downloadJson": "下載 JSON",
+    "generateError": "產生連結失敗，請再試一次",
+    "emptySelection": "請先勾選要分享的書籍",
+    "tooMany": "短連結一次最多 {max} 本，請改少選，或改用 JSON 匯出整份清單",
+    "privacyNote": "連結把書名與價格放在網址裡，不會上傳到伺服器。請只分享給信任的人。",
+    "linkLabel": "分享連結",
+    "close": "關閉"
+  },
+  "json": {
+    "export": "匯出 JSON",
+    "import": "匯入 JSON",
+    "exportTitle": "匯出全部書籍為 JSON"
+  },
+  "sharePage": {
+    "landingTitle": "KoBox",
+    "landingSubtitle": "從 Kobo 願望清單找出最剛好的結帳組合",
+    "install": "安裝 Chrome 插件",
+    "loading": "載入書單中...",
+    "invalidLink": "這個分享連結無效或已損壞",
+    "backHome": "回到首頁",
+    "sharedList": "有人分享了一份書單給你",
+    "bookCount": "{n} 本書",
+    "selectAll": "全選",
+    "unselectAll": "取消全選",
+    "selectedSummary": "已選 {n} 本 · ${price}",
+    "import": "匯入到 KoBox",
+    "importing": "匯入中...",
+    "imported": "已匯入 {added} 本，更新 {updated} 本",
+    "importFailed": "匯入失敗，請重新整理頁面後再試",
+    "openExtension": "打開瀏覽器工具列的 KoBox 圖示即可看到書單",
+    "needInstallHint": "安裝完成後請重新整理此頁，即可把勾選的書匯入插件。",
+    "priceNote": "價格以分享當下為準，實際售價請以 Kobo 網站為主。"
   }
 }

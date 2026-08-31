@@ -2,8 +2,12 @@
   <div class="popup-container">
     <Header />
 
+    <div v-if="importNotice" class="import-banner">
+      <span>{{ importNotice }}</span>
+      <button type="button" class="banner-close" @click="dismissImportNotice">×</button>
+    </div>
+
     <main class="main-content">
-      <!-- 左側：控制面板 -->
       <ControlPanel
         :is-on-wishlist="isOnWishlist"
         :books="books"
@@ -13,6 +17,7 @@
         @import-books="importBooks"
         @find-combinations="handleFindCombinations"
         @update-target-price="updateTargetPrice"
+        @share-books="showShareModal = true"
       />
 
       <!-- 右側：頁籤區域 -->
@@ -49,6 +54,8 @@
             @unpin-all="unpinAllBooks"
             @unselect-all="unselectAllBooks"
             @select-all="selectAllBooks"
+            @export-json="exportBooksJson"
+            @import-json="importBooksJson"
           />
 
           <CombinationResults
@@ -61,6 +68,12 @@
         </div>
       </div>
     </main>
+
+    <ShareModal
+      v-if="showShareModal"
+      :books="books"
+      @close="showShareModal = false"
+    />
   </div>
 </template>
 
@@ -71,6 +84,8 @@ import Header from '../components/Header.vue'
 import ControlPanel from '../components/ControlPanel.vue'
 import BooksList from '../components/BooksList.vue'
 import CombinationResults from '../components/CombinationResults.vue'
+import ShareModal from '../components/ShareModal.vue'
+import { buildWishlistJson, mergeImportedBooks, parseWishlistJson } from '../shared/sharePayload.js'
 
 interface Book {
   id: string
@@ -79,6 +94,7 @@ interface Book {
   price: number
   selected: boolean
   pinned: boolean
+  url?: string
 }
 
 interface BookCombination {
@@ -91,6 +107,7 @@ interface ExtractBooksResponse {
     title: string
     price: number
     productId: string
+    url?: string
   }>
 }
 
@@ -109,6 +126,8 @@ const isCalculating: Ref<boolean> = ref(false)
 const hasSearched: Ref<boolean> = ref(false)
 const calculationProgress: Ref<number> = ref(0)
 const activeTab: Ref<'books' | 'results'> = ref('books')
+const showShareModal: Ref<boolean> = ref(false)
+const importNotice: Ref<string> = ref('')
 
 const selectedCount = computed(() => {
   return books.value.filter(book => book.selected).length
@@ -153,7 +172,8 @@ const importBooks = async (): Promise<void> => {
           title: book.title,
           price: book.price,
           selected: true,
-          pinned: false
+          pinned: false,
+          url: book.url || ''
         }
 
         if (existingIndex !== -1) {
@@ -372,12 +392,21 @@ const loadBooksFromStorage = async (): Promise<void> => {
       'koboCombinations', 
       'koboHasSearched',
       'koboLastCalculated',
-      'koboActiveTab'
+      'koboActiveTab',
+      'koboImportNotice'
     ])
     
     // 載入上次使用的分頁
     if (result.koboActiveTab && (result.koboActiveTab === 'books' || result.koboActiveTab === 'results')) {
       activeTab.value = result.koboActiveTab
+    }
+
+    if (result.koboImportNotice && typeof result.koboImportNotice === 'object') {
+      const added = Number(result.koboImportNotice.added) || 0
+      const updated = Number(result.koboImportNotice.updated) || 0
+      importNotice.value = t('messages.importNotice', { added, updated })
+      await chrome.action.setBadgeText({ text: '' })
+      await chrome.storage.local.remove(['koboImportNotice'])
     }
     
     if (result.koboBooks) {
@@ -396,7 +425,8 @@ const loadBooksFromStorage = async (): Promise<void> => {
         // 確保舊資料也有 pinned 欄位
         books.value = loadedBooks.map((book: any) => ({
           ...book,
-          pinned: book.pinned ?? false
+          pinned: book.pinned ?? false,
+          url: book.url ?? ''
         }))
       }
     } else {
@@ -539,6 +569,47 @@ const selectAllBooks = async (): Promise<void> => {
   }
 }
 
+const exportBooksJson = (): void => {
+  if (books.value.length === 0) return
+  const payload = buildWishlistJson(books.value)
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const date = new Date().toISOString().slice(0, 10)
+  link.href = url
+  link.download = `kobox-wishlist-${date}.json`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const importBooksJson = async (file: File): Promise<void> => {
+  try {
+    const text = await file.text()
+    const incoming = parseWishlistJson(text)
+    const merged = mergeImportedBooks(books.value, incoming)
+    books.value = merged.books
+    await clearStaleResults()
+    await saveBooksToStorage()
+    importNotice.value = t('messages.jsonImported', {
+      added: merged.added,
+      updated: merged.updated
+    })
+    activeTab.value = 'books'
+  } catch {
+    alert(t('messages.jsonImportFailed'))
+  }
+}
+
+const dismissImportNotice = async (): Promise<void> => {
+  importNotice.value = ''
+  try {
+    await chrome.action.setBadgeText({ text: '' })
+    await chrome.storage.local.remove(['koboImportNotice'])
+  } catch {
+    // ignore badge/storage cleanup errors
+  }
+}
+
 const testChromeStorage = async (): Promise<void> => {
   try {
     
@@ -598,6 +669,7 @@ onUnmounted(() => {
 
 <style scoped>
 .popup-container {
+  position: relative;
   padding: 16px;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   color: #212529;
@@ -688,5 +760,28 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.import-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.banner-close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
 }
 </style>
