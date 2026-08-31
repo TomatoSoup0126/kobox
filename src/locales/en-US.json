@@ -8,41 +8,39 @@
   },
   "control": {
     "step1": "Add books",
-    "step3": "Search Settings",
+    "step2": "Search settings",
     "importWishlist": "Import wishlist books",
     "targetPrice": "Checkout price must be higher than",
-    "findCombinations": "Find Combinations",
+    "findCombinations": "Find combinations",
     "importing": "Importing...",
     "calculating": "Calculating...",
-    "enterAmount": "e.g.: 1000",
-    "hintMessage": "This button reads the books on your {link} page — open that page first",
+    "enterAmount": "e.g. 1000",
+    "hintMessage": "Reads the books on your {link} page. Open that page first.",
     "wishlistLink": "My Wishlist",
-    "storeHint": "You can also add single books from the Kobo home, search or book pages — click the button on the bottom-right of a cover",
+    "storeHint": "Add a book straight from this button on the Kobo site",
     "importDisabledHint": "Open your Kobo wishlist page first"
   },
   "books": {
-    "title": "Books List",
-    "clearAll": "Clear all",
+    "clearAll": "Clear all books",
     "noBooks": "No books imported yet",
     "deleteBook": "Delete this book",
-    "pin": "Pin this book (always included in combinations)",
+    "pin": "Pin this book so every combination includes it",
     "unpin": "Unpin this book",
     "pinned": "{n} pinned",
     "unpinAll": "Unpin",
-    "unselectAll": "Deselect",
+    "unselectAll": "Unselect all",
     "selectAll": "Select all",
     "openInKobo": "Open on Kobo: {title}"
   },
   "results": {
-    "title": "Recommended Combinations",
     "combination": "Combination",
-    "noResults": "No combinations found matching criteria, please adjust target price",
+    "noResults": "No combination reaches that price. Try lowering it.",
     "searching": "Calculating combinations...",
-    "setPrice": "Set price and click"
+    "setPrice": "Set a price and click"
   },
   "messages": {
     "importFailed": "Import failed\nPlease ensure you are on the wishlist page\nor refresh the wishlist page",
-    "storageError": "Chrome storage unavailable, this may affect data saving functionality",
+    "storageError": "Chrome storage is unavailable, so your books may not be saved.",
     "importNoticeShare": "Imported {added} books from a shared list, updated {updated}",
     "importNoticePage": "Added {added} books from Kobo, updated {updated}",
     "importNoticeMixed": "Added {added} books, updated {updated}",
@@ -56,7 +54,7 @@
     "calcBusy": "A calculation is already running",
     "calcMissingPrice": "Enter a checkout price first",
     "calcMissingBooks": "Select at least one book first",
-    "calcFailed": "Calculation failed, please try again",
+    "calcFailed": "Calculation failed. Please try again.",
     "close": "Close"
   },
   "share": {
@@ -71,7 +69,7 @@
     "generateError": "Could not create the link. Please try again.",
     "emptySelection": "Select at least one book to share",
     "tooMany": "A share link can include at most {max} books. Select fewer, or export the full list as JSON.",
-    "privacyNote": "The book titles and prices are stored in the URL itself, not on a server. Only share it with people you trust.",
+    "privacyNote": "The link carries the book titles and prices in the URL, not on a server.",
     "linkLabel": "Share link",
     "close": "Close"
   },
@@ -83,7 +81,7 @@
   },
   "sharePage": {
     "landingTitle": "KoBox",
-    "landingSubtitle": "Find the best checkout combinations from your Kobo wishlist",
+    "landingSubtitle": "Find the cheapest combination that clears your checkout target",
     "install": "Install the Chrome extension",
     "loading": "Loading list...",
     "invalidLink": "This share link is invalid or damaged",
@@ -92,7 +90,7 @@
     "bookCount": "{n} books",
     "selectAll": "Select all",
     "unselectAll": "Unselect all",
-    "selectedSummary": "{n} selected · ${price}",
+    "selectedSummary": "{n} selected · NT${price}",
     "import": "Import into KoBox",
     "importing": "Importing...",
     "imported": "Imported {added}, updated {updated}",
