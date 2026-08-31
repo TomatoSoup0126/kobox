@@ -1,43 +1,56 @@
 <template>
   <div class="books-list-container">
     <!-- 工具列 -->
-    <div class="toolbar" v-if="books.length > 0">
+    <div class="toolbar">
+      <!-- 破壞性動作獨立在左側，與例行操作分開，也讓右側排得下 -->
       <div class="toolbar-info">
-        <span v-if="pinnedCount > 0" class="pinned-count">
-          📌 {{ pinnedCount }} {{ $t('books.pinned') }}
-        </span>
-      </div>
-      <div class="toolbar-actions">
-        <button 
-          v-if="pinnedCount > 0"
-          @click="handleUnpinAll"
-          class="toolbar-btn"
-          :title="$t('books.unpinAll')"
-        >
-          📌 {{ $t('books.unpinAll') }}
-        </button>
-        <button 
-          v-if="selectedCount === books.length"
-          @click="handleUnselectAll"
-          class="toolbar-btn select-toggle-btn"
-          :title="$t('books.unselectAll')"
-        >
-          ☐ {{ $t('books.unselectAll') }}
-        </button>
-        <button 
-          v-else
-          @click="handleSelectAll"
-          class="toolbar-btn select-toggle-btn"
-          :title="$t('books.selectAll')"
-        >
-          ☑ {{ $t('books.selectAll') }}
-        </button>
-        <button 
+        <button
+          v-if="books.length > 0"
           @click="handleClearAllData"
           class="clear-btn"
           :title="$t('books.clearAll')"
         >
-          ↻ {{ $t('books.clearAll') }}
+          <Icon name="reset" :size="13" />
+          {{ $t('books.clearAll') }}
+        </button>
+      </div>
+      <div class="toolbar-actions">
+        <!-- 釘選數量併進按鈕，數量只有搭配這個動作才有意義，也省下一整個標籤的寬度 -->
+        <button 
+          v-if="pinnedCount > 0"
+          @click="handleUnpinAll"
+          class="toolbar-btn"
+          :title="$t('books.pinned', { n: pinnedCount })"
+        >
+          <Icon name="pin" :size="13" />
+          {{ $t('books.unpinAll') }} {{ pinnedCount }}
+        </button>
+        <button 
+          v-if="books.length > 0 && selectedCount === books.length"
+          @click="handleUnselectAll"
+          class="toolbar-btn select-toggle-btn"
+          :title="$t('books.unselectAll')"
+        >
+          <Icon name="checkbox" :size="13" />
+          {{ $t('books.unselectAll') }}
+        </button>
+        <button 
+          v-else-if="books.length > 0"
+          @click="handleSelectAll"
+          class="toolbar-btn select-toggle-btn"
+          :title="$t('books.selectAll')"
+        >
+          <Icon name="checkboxChecked" :size="13" />
+          {{ $t('books.selectAll') }}
+        </button>
+        <button
+          v-if="books.length > 0"
+          @click="handleShareBooks"
+          class="toolbar-btn share-toolbar-btn"
+          :title="$t('share.title')"
+        >
+          <Icon name="share" :size="13" />
+          {{ $t('share.button') }}
         </button>
       </div>
     </div>
@@ -55,8 +68,9 @@
           class="pin-btn"
           :class="{ 'pin-btn-active': book.pinned }"
           :title="book.pinned ? $t('books.unpin') : $t('books.pin')"
+          :aria-label="book.pinned ? $t('books.unpin') : $t('books.pin')"
         >
-          📌
+          <Icon name="pin" :size="14" />
         </button>
         <input 
           type="checkbox" 
@@ -65,15 +79,22 @@
           class="book-checkbox"
         >
         <div class="book-info">
-          <div class="book-title" :title="book.title">{{ book.title }}</div>
+          <a
+            class="book-title"
+            :href="bookHref(book)"
+            target="_blank"
+            rel="noopener noreferrer"
+            :title="$t('books.openInKobo', { title: book.title })"
+          >{{ book.title }}</a>
         </div>
         <div class="book-price">${{ book.price }}</div>
         <button 
           @click="handleDeleteBook(book.id)"
           class="delete-btn"
           :title="$t('books.deleteBook')"
+          :aria-label="$t('books.deleteBook')"
         >
-          ×
+          <Icon name="close" :size="14" />
         </button>
       </div>
     </div>
@@ -84,7 +105,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { bookHref } from '../shared/sharePayload.js'
+import Icon from './Icon.vue'
 
 interface Book {
   id: number
@@ -92,6 +115,7 @@ interface Book {
   price: number
   selected: boolean
   pinned: boolean
+  url?: string
 }
 
 interface Props {
@@ -106,11 +130,11 @@ interface Emits {
   (e: 'unpin-all'): void
   (e: 'unselect-all'): void
   (e: 'select-all'): void
+  (e: 'share-books'): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-
 const selectedCount = computed(() => {
   return props.books.filter(book => book.selected).length
 })
@@ -131,10 +155,10 @@ const toggleBookPinned = (book: Book): void => {
   emit('update-book-pinned', { ...book, pinned: !book.pinned })
 }
 
+// 確認交給 PopupApp 用橫幅處理：破壞性動作由擁有資料的一方確認，
+// 也避免原生 confirm() 把 popup 關掉。
 const handleClearAllData = (): void => {
-  if (confirm('確定要清除所有書籍資料嗎？此操作無法復原。')) {
-    emit('clear-all-data')
-  }
+  emit('clear-all-data')
 }
 
 const handleUnpinAll = (): void => {
@@ -148,6 +172,11 @@ const handleUnselectAll = (): void => {
 const handleSelectAll = (): void => {
   emit('select-all')
 }
+
+const handleShareBooks = (): void => {
+  emit('share-books')
+}
+
 </script>
 
 <style scoped>
@@ -173,12 +202,7 @@ const handleSelectAll = (): void => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.pinned-count {
-  color: #e67e22;
-  font-weight: 600;
-  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .books-list {
@@ -241,12 +265,19 @@ const handleSelectAll = (): void => {
 }
 
 .book-title {
+  display: block;
   font-size: 14px;
   font-weight: 500;
   color: #212529;
+  text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.book-title:hover {
+  color: #bf0000;
+  text-decoration: underline;
 }
 
 .book-price {
@@ -325,7 +356,9 @@ const handleSelectAll = (): void => {
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .toolbar-btn {
@@ -333,7 +366,10 @@ const handleSelectAll = (): void => {
   border: 1px solid #6c757d;
   color: #6c757d;
   cursor: pointer;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
   transition: all 0.2s;
@@ -344,6 +380,20 @@ const handleSelectAll = (): void => {
 .toolbar-btn:hover {
   background: #6c757d;
   color: white;
+}
+
+/* 用實心而非紅色外框：同一列的「清除所有資料」是紅色外框的破壞性動作，
+   外框紅會讓兩者看起來同類。實心 = 主要動作，外框紅 = 破壞性動作。 */
+.share-toolbar-btn {
+  border-color: #bf0000;
+  background: #bf0000;
+  color: #fff;
+}
+
+.share-toolbar-btn:hover {
+  background: #8f0000;
+  border-color: #8f0000;
+  color: #fff;
 }
 
 .select-toggle-btn {
@@ -357,7 +407,10 @@ const handleSelectAll = (): void => {
   border: 1px solid #dc3545;
   color: #dc3545;
   cursor: pointer;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
   transition: all 0.2s;
