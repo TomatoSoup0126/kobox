@@ -8,12 +8,12 @@
 
 ## ✨ Features
 
-- **🔄 One-Click Import** - Quickly import books from your Kobo wishlist
-- **🎯 Smart Calculation** - Automatically find optimal combinations that meet your target price
-- **💰 Price Optimization** - Precisely calculate book combinations to reach minimum checkout threshold
+- **🔄 One-Click Import** - Import every book on your Kobo wishlist page at once
+- **📦 Add While Browsing** - Add a single book straight from any Kobo page, no wishlist detour
+- **🎯 Smart Calculation** - Find the cheapest combination that clears your target checkout price
 - **📌 Pin Books** - Pin specific books to ensure they always appear in combinations
 - **✅ Batch Operations** - Select all, unselect all, or unpin all books with one click
-- **🔗 Share List** - Copy a link (up to `MAX_SHARE_BOOKS` books, see `src/shared/config.js`) so others can view it and import selected titles
+- **🔗 Share List** - Copy a link so others can view your list and import the titles they want
 - **💾 JSON Backup** - Export or import the full book list as a JSON file
 
 ## 🚀 Quick Start
@@ -28,31 +28,36 @@
    - Login to [Kobo website](https://www.kobo.com)
    - Navigate to your wishlist page
 
-2. **Import Books Data**
+2. **Import Your Wishlist**
    - Click the KoBox icon in the toolbar
-   - Click "Import Books Data" button
+   - Click **Import wishlist books**
+   - The button only works while the wishlist page is open, since it reads the books off that page
 
-3. **Pin Must-Have Books (Optional)**
-   - Click the 📌 icon next to any book to pin it
-   - Pinned books will always be included in every combination
+3. **Add Single Books While Browsing (Optional)**
+   - On the Kobo home, search or book pages, click the button on the bottom-right of a cover
+   - The book goes straight into KoBox; open the popup when you want to see what accumulated
 
-4. **Set Target Price**
-   - Enter your desired minimum checkout amount
-   - Example: 1000 (means total price at least $1000)
+4. **Pin Must-Have Books (Optional)**
+   - Click the pin button next to any book
+   - Pinned books are included in every combination and highlighted in the list
 
-5. **Find Best Combinations**
-   - Click "Find Combinations" button
-   - Browse the recommended book combination list
-   - Pinned books are highlighted for easy identification
+5. **Set Target Price**
+   - Enter the minimum amount your checkout has to clear
+   - Example: 1000 means the combination totals at least NT$1000
 
-6. **Share a List (Optional)**
-   - Click "Share list" and copy the link (up to `MAX_SHARE_BOOKS` books)
+6. **Find Best Combinations**
+   - Click **Find combinations**
+   - Browse the recommended combinations, cheapest first
+
+7. **Share a List (Optional)**
+   - Click **Share list**, pick all books or just the ticked ones, and copy the link
    - Recipients open [kobox-extension.netlify.app](https://kobox-extension.netlify.app), tick books, and import them into KoBox
    - People without the extension are directed to the Chrome Web Store
    - Book data lives in the URL hash and is not stored on a server
+   - A link holds at most `MAX_SHARE_BOOKS` books (`src/shared/config.js`); past that, export JSON instead
 
-7. **Export / Import JSON (Optional)**
-   - Use **Export JSON** to back up the full list (no 10-book limit)
+8. **Export / Import JSON (Optional)**
+   - Use **Export JSON** to back up the full list, however long it is
    - Use **Import JSON** on another browser or device; existing books are matched by `productId`
 
 ---
@@ -65,6 +70,13 @@
 2. The included `netlify.toml` already sets `npm run build:site` and the `dist-site` publish directory
 3. Set the site name to `kobox-extension` so the public URL is `https://kobox-extension.netlify.app` (or update `src/shared/config.js` if you use another name)
 4. After the first deploy, share links copied from the extension will open that site
+
+### Development
+
+- `npm run dev` - build the extension into `dist/` in watch mode, then load the project root as an unpacked extension
+- `npm run dev:site` - serve the share page on `localhost:5174`; it temporarily adds that origin to `manifest.json` and restores it on exit
+- `npm run manifest:clean` - undo that manifest patch if the dev server was killed before it could
+- `npm test` - run the share payload, bridge, price and notice tests
 
 
 <a href="https://www.buymeacoffee.com/tomatosoup" target="_blank">
