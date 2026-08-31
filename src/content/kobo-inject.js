@@ -25,6 +25,27 @@ const TITLE_FALLBACK_SELECTOR = 'a[href*="/ebook/"], a[href*="/audiobook/"]'
 const PRICING_SELECTOR = '[data-testid$="-pricing"]'
 
 /**
+ * 活動頁（/p/…）的 selector。
+ *
+ * 這類頁面走的是舊版 server-rendered 模板，一個 data-testid 都沒有，所以
+ * PRICING_SELECTOR 那條路徑掃不到任何東西，整頁都不會長出按鈕。
+ *
+ * productId 只在卡片最外層的 data-product-id 上。網址 slug 不能用：它是
+ * crossRevisionId 的 base64url，解出來是另一個 UUID，用它當 key 會和願望清單
+ * 來的同一本書重複。
+ *
+ * 封面容器的 class 同一頁裡就有兩種寫法（image-coner 與 image-container），
+ * 只有 .image-actions 是共通的，所以錨點用它。
+ */
+const CAMPAIGN = {
+  card: '.item.book',
+  productId: '[data-product-id]',
+  cover: '.image-actions',
+  title: 'h2.title.product-field',
+  price: '.book-detail-line.price .price-value'
+}
+
+/**
  * 圖示家族：統一用「收納盒」表達 KoBox，盒身內的符號表示狀態。
  * 盒蓋 + 盒身的輪廓在 14px 下仍可辨識，比單純一個加號更能表達「收進盒子裡」。
  */
@@ -191,6 +212,35 @@ function readBookFromCard (pricingEl) {
   return { productId, title, price, url, cover }
 }
 
+/**
+ * 活動頁的卡片。價格在頁面上，所以不必額外打網路請求，但 productId 只有外層
+ * 容器知道，讀不到就放棄這張卡而不是退回用 slug。
+ */
+function readBookFromCampaignCard (card) {
+  const productId = card.closest(CAMPAIGN.productId)?.getAttribute('data-product-id')
+  if (!productId || !UUID_RE.test(productId)) return null
+
+  const cover = card.querySelector(CAMPAIGN.cover)
+  const titleEl = card.querySelector(CAMPAIGN.title)
+  const priceEl = card.querySelector(CAMPAIGN.price)
+  if (!cover || !titleEl || !priceEl) return null
+
+  const title = (titleEl.textContent || '').trim().replace(/\s+/g, ' ')
+  // 這頁目前沒有特價卡片，但仍走 salePriceText：真出現刪除線原價時才不會抓錯。
+  const price = parseKoboPrice(salePriceText(priceEl))
+  if (!title || price === null) return null
+
+  let url = ''
+  try {
+    const href = card.querySelector('a[href*="/ebook/"], a[href*="/audiobook/"]')?.getAttribute('href')
+    url = href ? new URL(href, window.location.origin).href : ''
+  } catch {
+    url = ''
+  }
+
+  return { productId, title, price, url, cover }
+}
+
 // 把 background/runtime 的錯誤碼轉成使用者看得懂、且說得出下一步的說法。
 function failureLabel (error) {
   const message = error?.message || String(error || '')
@@ -270,6 +320,11 @@ function collectBooks () {
 
   for (const pricingEl of document.querySelectorAll(PRICING_SELECTOR)) {
     const book = readBookFromCard(pricingEl)
+    if (book) books.push(book)
+  }
+
+  for (const card of document.querySelectorAll(CAMPAIGN.card)) {
+    const book = readBookFromCampaignCard(card)
     if (book) books.push(book)
   }
 
