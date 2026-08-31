@@ -2,8 +2,24 @@
   <div class="popup-container">
     <Header />
 
+    <div v-if="notice" class="notice-banner" :class="`notice-${notice.tone}`" role="status">
+      <span class="notice-text">{{ notice.text }}</span>
+      <div v-if="notice.actions" class="notice-actions">
+        <button
+          v-for="action in notice.actions"
+          :key="action.label"
+          type="button"
+          class="notice-action"
+          :class="{ 'notice-action-primary': action.primary }"
+          @click="runNoticeAction(action)"
+        >{{ action.label }}</button>
+      </div>
+      <button type="button" class="banner-close" :title="$t('messages.close')" @click="dismissNotice">
+        <Icon name="close" :size="14" />
+      </button>
+    </div>
+
     <main class="main-content">
-      <!-- 左側：控制面板 -->
       <ControlPanel
         :is-on-wishlist="isOnWishlist"
         :books="books"
@@ -13,6 +29,8 @@
         @import-books="importBooks"
         @find-combinations="handleFindCombinations"
         @update-target-price="updateTargetPrice"
+        @import-json="importBooksJson"
+        @export-json="exportBooksJson"
       />
 
       <!-- 右側：頁籤區域 -->
@@ -24,7 +42,8 @@
             :class="{ active: activeTab === 'books' }"
             @click="switchTab('books')"
           >
-            📚 {{ $t('tabs.books') }}
+            <Icon name="books" />
+            {{ $t('tabs.books') }}
             <span v-if="books.length > 0" class="tab-badge">{{ selectedCount }}/{{ books.length }}</span>
           </button>
           <button 
@@ -32,7 +51,8 @@
             :class="{ active: activeTab === 'results' }"
             @click="switchTab('results')"
           >
-            🎯 {{ $t('tabs.results') }}
+            <Icon name="target" />
+            {{ $t('tabs.results') }}
             <span v-if="combinations.length > 0" class="tab-badge tab-badge-success">{{ combinations.length }}</span>
           </button>
         </div>
@@ -45,10 +65,11 @@
             @delete-book="deleteBook"
             @update-book-selection="updateBookSelection"
             @update-book-pinned="updateBookPinned"
-            @clear-all-data="clearAllData"
+            @clear-all-data="requestClearAll"
             @unpin-all="unpinAllBooks"
             @unselect-all="unselectAllBooks"
             @select-all="selectAllBooks"
+            @share-books="showShareModal = true"
           />
 
           <CombinationResults
@@ -61,6 +82,12 @@
         </div>
       </div>
     </main>
+
+    <ShareModal
+      v-if="showShareModal"
+      :books="books"
+      @close="showShareModal = false"
+    />
   </div>
 </template>
 
@@ -71,6 +98,11 @@ import Header from '../components/Header.vue'
 import ControlPanel from '../components/ControlPanel.vue'
 import BooksList from '../components/BooksList.vue'
 import CombinationResults from '../components/CombinationResults.vue'
+import ShareModal from '../components/ShareModal.vue'
+import Icon from '../components/Icon.vue'
+import { buildWishlistJson, mergeImportedBooks, parseWishlistJson } from '../shared/sharePayload.js'
+import { downloadJsonFile, wishlistFilename } from '../shared/downloadJson.js'
+import { noticeSourceKey, noticeTotals } from '../shared/importNotice.js'
 
 interface Book {
   id: string
@@ -79,6 +111,7 @@ interface Book {
   price: number
   selected: boolean
   pinned: boolean
+  url?: string
 }
 
 interface BookCombination {
@@ -91,6 +124,7 @@ interface ExtractBooksResponse {
     title: string
     price: number
     productId: string
+    url?: string
   }>
 }
 
@@ -109,6 +143,26 @@ const isCalculating: Ref<boolean> = ref(false)
 const hasSearched: Ref<boolean> = ref(false)
 const calculationProgress: Ref<number> = ref(0)
 const activeTab: Ref<'books' | 'results'> = ref('books')
+const showShareModal: Ref<boolean> = ref(false)
+interface NoticeAction {
+  label: string
+  handler: () => void
+  primary?: boolean
+}
+
+interface Notice {
+  text: string
+  tone: 'success' | 'error'
+  actions?: NoticeAction[]
+}
+
+// 單一橫幅取代先前的綠色提示 + 三個 alert() + 一個 confirm()，
+// 讓所有回饋都出現在同一個位置，也避免原生對話框把 popup 關掉。
+const notice: Ref<Notice | null> = ref(null)
+let noticeTimer: ReturnType<typeof setTimeout> | null = null
+// 刪除單本書時暫存的復原資料。確認疲勞會讓使用者盲目點掉確認框，
+// 所以單本刪除用復原、清除全部才用確認。
+let pendingUndo: { book: Book, index: number } | null = null
 
 const selectedCount = computed(() => {
   return books.value.filter(book => book.selected).length
@@ -153,7 +207,8 @@ const importBooks = async (): Promise<void> => {
           title: book.title,
           price: book.price,
           selected: true,
-          pinned: false
+          pinned: false,
+          url: book.url || ''
         }
 
         if (existingIndex !== -1) {
@@ -175,22 +230,55 @@ const importBooks = async (): Promise<void> => {
     } else {
     }
       } catch (error) {
-    alert(t('messages.importFailed'))
+    showError('messages.importFailed')
   } finally {
     isLoading.value = false
   }
 }
 
 const deleteBook = async (bookId: number): Promise<void> => {
-  books.value = books.value.filter(book => book.id !== bookId)
-  
+  const index = books.value.findIndex(book => book.id === bookId)
+  if (index === -1) return
+
+  const [removed] = books.value.splice(index, 1)
+  pendingUndo = { book: removed, index }
+
   await clearStaleResults()
-  
   await saveBooksToStorage()
-  
+
+  showNotice(
+    t('messages.deleted', { title: removed.title }),
+    'success',
+    [{ label: t('messages.undo'), handler: undoDelete, primary: true }],
+    6000
+  )
+
   if (hasSearched.value && targetPrice.value) {
     findCombinations()
   }
+}
+
+const undoDelete = async (): Promise<void> => {
+  if (!pendingUndo) return
+  const { book, index } = pendingUndo
+  pendingUndo = null
+
+  // 插回原本的位置，而不是接到清單尾端。
+  books.value.splice(Math.min(index, books.value.length), 0, book)
+  await clearStaleResults()
+  await saveBooksToStorage()
+
+  if (hasSearched.value && targetPrice.value) {
+    findCombinations()
+  }
+}
+
+// 破壞性且量大，用確認而非復原。改走橫幅是為了不再有硬編中文的原生對話框。
+const requestClearAll = (): void => {
+  showNotice(t('messages.clearAllConfirm'), 'error', [
+    { label: t('messages.confirm'), handler: clearAllData, primary: true },
+    { label: t('messages.cancel'), handler: dismissNotice }
+  ])
 }
 
 const updateTargetPrice = async (value: number | null): Promise<void> => {
@@ -270,6 +358,7 @@ const findCombinations = async (): Promise<void> => {
     productId: book.productId,
     title: book.title,
     price: book.price,
+    url: book.url ?? '',
     selected: book.selected,
     pinned: book.pinned
   }))
@@ -279,6 +368,7 @@ const findCombinations = async (): Promise<void> => {
     productId: book.productId,
     title: book.title,
     price: book.price,
+    url: book.url ?? '',
     selected: book.selected,
     pinned: book.pinned
   }))
@@ -293,11 +383,13 @@ const findCombinations = async (): Promise<void> => {
   }).then(response => {
     if (response.error) {
       console.error('計算請求錯誤:', response.error)
+      showError(calcErrorKey(response.error))
       isCalculating.value = false
       calculationProgress.value = 0
     }
   }).catch(error => {
     console.error('發送計算請求失敗:', error)
+    showError('messages.calcFailed')
     isCalculating.value = false
     calculationProgress.value = 0
   })
@@ -372,12 +464,19 @@ const loadBooksFromStorage = async (): Promise<void> => {
       'koboCombinations', 
       'koboHasSearched',
       'koboLastCalculated',
-      'koboActiveTab'
+      'koboActiveTab',
+      'koboImportNotice'
     ])
     
     // 載入上次使用的分頁
     if (result.koboActiveTab && (result.koboActiveTab === 'books' || result.koboActiveTab === 'results')) {
       activeTab.value = result.koboActiveTab
+    }
+
+    if (result.koboImportNotice && typeof result.koboImportNotice === 'object') {
+      showNotice(renderStoredNotice(result.koboImportNotice), 'success')
+      // 清除失敗不該中斷下面的書籍載入，否則清單會顯示成空的。
+      await clearStoredNotice()
     }
     
     if (result.koboBooks) {
@@ -396,7 +495,8 @@ const loadBooksFromStorage = async (): Promise<void> => {
         // 確保舊資料也有 pinned 欄位
         books.value = loadedBooks.map((book: any) => ({
           ...book,
-          pinned: book.pinned ?? false
+          pinned: book.pinned ?? false,
+          url: book.url ?? ''
         }))
       }
     } else {
@@ -539,6 +639,90 @@ const selectAllBooks = async (): Promise<void> => {
   }
 }
 
+const exportBooksJson = (): void => {
+  if (books.value.length === 0) return
+  downloadJsonFile(buildWishlistJson(books.value), wishlistFilename())
+}
+
+const importBooksJson = async (file: File): Promise<void> => {
+  try {
+    const text = await file.text()
+    const incoming = parseWishlistJson(text)
+    const merged = mergeImportedBooks(books.value, incoming)
+    books.value = merged.books
+    await clearStaleResults()
+    await saveBooksToStorage()
+    showNotice(t('messages.jsonImported', {
+      added: merged.added,
+      updated: merged.updated
+    }), 'success')
+    activeTab.value = 'books'
+  } catch {
+    showError('messages.jsonImportFailed')
+  }
+}
+
+// 提示的來源決定文案：單一來源用該來源的說法，多來源或舊格式用中性說法。
+const renderStoredNotice = (notice: unknown): string => {
+  const { added, updated } = noticeTotals(notice)
+  const key = noticeSourceKey(notice)
+  const messageKey = key === 'share' ? 'messages.importNoticeShare'
+    : key === 'page' ? 'messages.importNoticePage'
+    : 'messages.importNoticeMixed'
+  return t(messageKey, { added, updated })
+}
+
+// 清除交給 background，才不會被 in-flight 的匯入寫入蓋回去。
+const clearStoredNotice = async (): Promise<void> => {
+  try {
+    await chrome.runtime.sendMessage({ action: 'clearImportNotice' })
+  } catch (error) {
+    console.warn('清除匯入提示失敗:', error)
+  }
+}
+
+const dismissNotice = (): void => {
+  if (noticeTimer) {
+    clearTimeout(noticeTimer)
+    noticeTimer = null
+  }
+  notice.value = null
+}
+
+const showNotice = (
+  text: string,
+  tone: Notice['tone'] = 'success',
+  actions?: NoticeAction[],
+  autoDismissMs?: number
+): void => {
+  dismissNotice()
+  notice.value = { text, tone, actions }
+  if (autoDismissMs) {
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null
+      notice.value = null
+      pendingUndo = null
+    }, autoDismissMs)
+  }
+}
+
+const runNoticeAction = (action: NoticeAction): void => {
+  dismissNotice()
+  action.handler()
+}
+
+const showError = (messageKey: string): void => showNotice(t(messageKey), 'error')
+
+// background 只回錯誤碼，文案在這裡對應，使用者才不會看到寫死的中文。
+const calcErrorKey = (code: unknown): string => {
+  switch (code) {
+    case 'calc_busy': return 'messages.calcBusy'
+    case 'calc_missing_price': return 'messages.calcMissingPrice'
+    case 'calc_missing_books': return 'messages.calcMissingBooks'
+    default: return 'messages.calcFailed'
+  }
+}
+
 const testChromeStorage = async (): Promise<void> => {
   try {
     
@@ -549,7 +733,7 @@ const testChromeStorage = async (): Promise<void> => {
     await chrome.storage.local.remove(['testKey'])
     
   } catch (error) {
-    alert(t('messages.storageError'))
+    showError('messages.storageError')
   }
 }
 
@@ -575,6 +759,8 @@ const handleBackgroundMessage = (message: any) => {
       
     case 'calculation_error':
       console.error('Background 計算錯誤:', message.error)
+      // 先前只進 console，UI 只是默默把 spinner 收掉，使用者不知道發生什麼事。
+      showError(calcErrorKey(message.error))
       isCalculating.value = false
       calculationProgress.value = 0
       break
@@ -598,6 +784,7 @@ onUnmounted(() => {
 
 <style scoped>
 .popup-container {
+  position: relative;
   padding: 16px;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   color: #212529;
@@ -605,12 +792,18 @@ onUnmounted(() => {
   width: 800px;
   box-sizing: border-box;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
+/* 高度必須是彈性的：先前寫死 calc(600px - 80px)，假設了「沒有橫幅」，
+   橫幅一出現就把內容推超過容器高度而被裁掉，捲不到最底。
+   min-height: 0 是必要的，否則 flex item 不會縮到小於內容高度。 */
 .main-content {
   display: flex;
   gap: 16px;
-  height: calc(600px - 80px);
+  flex: 1;
+  min-height: 0;
 }
 
 .tab-container {
@@ -688,5 +881,68 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid;
+}
+
+.notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice-success {
+  background: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.notice-error {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.notice-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.notice-action {
+  border: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.notice-action-primary {
+  font-weight: 600;
+}
+
+.notice-action:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.banner-close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
 }
 </style>

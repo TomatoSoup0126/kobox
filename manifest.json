@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KoBox",
-  "version": "0.3",
+  "version": "0.4",
   "description": "Find Optimal Checkout Combinations",
   "permissions": [
     "activeTab",
@@ -27,12 +27,25 @@
     }
   },
   "background": {
-    "service_worker": "dist/background.js"
+    "service_worker": "dist/background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["https://www.kobo.com/*/wishlist*"],
       "js": ["dist/content.js"]
+    },
+    {
+      "matches": ["https://www.kobo.com/*"],
+      "js": ["dist/kobo-inject.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://kobox-extension.netlify.app/*"
+      ],
+      "js": ["dist/share-bridge.js"],
+      "run_at": "document_start"
     }
   ]
 }

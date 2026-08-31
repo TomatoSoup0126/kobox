@@ -68,7 +68,8 @@ class KoboWishlistExtractor {
         price: null,
         originalPrice: null,
         currency: 'TWD',
-        productId: null
+        productId: null,
+        url: null
       }
 
       book.title = this.extractTitle(element)
@@ -78,6 +79,7 @@ class KoboWishlistExtractor {
       book.originalPrice = priceInfo.originalPrice
       book.currency = priceInfo.currency
       book.productId = this.extractProductId(element)
+      book.url = this.extractUrl(element)
       return book
       
     } catch (error) {
@@ -97,6 +99,20 @@ class KoboWishlistExtractor {
     }
 
     return null
+  }
+
+  extractUrl (element) {
+    const titleEl = element.querySelector('.heading-link')
+    if (!titleEl) return null
+
+    const href = titleEl.getAttribute('href') || titleEl.href
+    if (!href) return null
+
+    try {
+      return new URL(href, window.location.origin).href
+    } catch {
+      return null
+    }
   }
 
   extractPrice(element) {

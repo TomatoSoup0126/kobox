@@ -3,7 +3,7 @@
     <!-- 載入狀態 -->
     <div v-if="isCalculating" class="loading-container">
       <div class="loading-text">
-        <div class="loading-title">🔍 {{ $t('results.searching') }}</div>
+        <div class="loading-title"><Icon name="search" :size="15" /> {{ $t('results.searching') }}</div>
         <div class="loading-percentage">
           {{ calculationProgress }}%
         </div>
@@ -43,8 +43,14 @@
             class="combo-book"
             :class="{ 'combo-book-pinned': book.pinned }"
           >
-            <span v-if="book.pinned" class="pin-icon">📌</span>
-            <span class="combo-book-title" :title="book.title">{{ book.title }}</span>
+            <Icon v-if="book.pinned" name="pin" :size="12" class="pin-icon" />
+            <a
+              class="combo-book-title"
+              :href="bookHref(book)"
+              target="_blank"
+              rel="noopener noreferrer"
+              :title="$t('books.openInKobo', { title: book.title })"
+            >{{ book.title }}</a>
             <span class="combo-book-price">$ {{ book.price }}</span>
           </div>
         </div>
@@ -53,19 +59,21 @@
     
     <!-- 無結果 -->
     <div v-else-if="hasSearched && combinations.length === 0" class="no-results">
-      😕 {{ $t('results.noResults') }}
+      <Icon name="empty" :size="18" /> {{ $t('results.noResults') }}
     </div>
     
     <!-- 初始狀態 -->
     <div v-else class="empty-state">
       {{ $t('results.setPrice') }}
-      <div>「{{ $t('control.findCombinations') }}」</div>
+      <div class="empty-cta">{{ $t('control.findCombinations') }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue'
+import { bookHref } from '../shared/sharePayload.js'
+import Icon from './Icon.vue'
 
 interface Book {
   id: number
@@ -73,6 +81,7 @@ interface Book {
   price: number
   selected: boolean
   pinned?: boolean
+  url?: string
 }
 
 interface BookCombination {
@@ -231,9 +240,16 @@ onMounted(() => {
 .combo-book-title {
   flex: 1;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.combo-book-title:hover {
+  color: #bf0000;
+  text-decoration: underline;
 }
 
 .combo-book-price {
